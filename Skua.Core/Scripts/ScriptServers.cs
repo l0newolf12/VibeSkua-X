@@ -150,7 +150,7 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
 
     private void ReloginLog(string message)
     {
-        Logger.ScriptLog($"[Relogin] {message}");
+        Logger.ScriptLog($"[Relogin] [{DateTime.Now:HH:mm:ss.fff}] {message}");
     }
     private static bool IsValidReloginServerData(Server server)
     {
@@ -496,19 +496,39 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
                 await Task.Delay(250, token);
             }
         }
-        catch { }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            ReloginLog("Server list wait was cancelled.");
+        }
+        catch (Exception e)
+        {
+            ReloginLog($"Server list wait failed with {e.GetType().Name}: {e.Message}");
+        }
         bool finalLoginVisible = Flash.GetGameObject<bool>("mcLogin.visible", false);
         bool finalServerListExists = !Flash.IsNull("mcLogin.sl.iList");
         int finalServerEntries = Flash.GetGameObject<int>("mcLogin.sl.iList.numChildren", 0);
         bool success = finalLoginVisible && finalServerListExists && finalServerEntries > 0 && ServerList.Exists(IsValidReloginServerData);
         if (!success)
         {
+            ReloginLog("Server list wait ended. " +
+                $"Playing={Player.Playing}, WorldLoaded={Flash.IsWorldLoaded}, Connected={IsConnected}, " +
+                $"LoginVisible={finalLoginVisible}, ServerListExists={finalServerListExists}, " +
+                $"ServerEntries={finalServerEntries}, Cancelled={token.IsCancellationRequested}, " +
+                $"ShouldExit={Manager.ShouldExit}, Timeout={Options.LoginTimeout}ms.");
+        }
+        if (!success && !Player.Playing && !Flash.IsWorldLoaded)
+        {
             ReloginLog("Server list screen failed to load (authentication timeout or freeze). Resetting login UI.");
             try
             {
-                Flash.CallGameFunction("gotoAndPlay", "Login");
+                if (!Player.Playing && !Flash.IsWorldLoaded)
+                    Flash.CallGameFunction("gotoAndPlay", "Login");
             }
             catch { }
+        }
+        else if (!success)
+        {
+            ReloginLog("Server list screen did not load, but the client is already connected. Skipping login UI reset.");
         }
         return success;
     }
@@ -538,8 +558,16 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
 
                 ReloginLog($"Attempt {tries}/{Options.ReloginTries}: trying {targetServer.Name} [{targetServer.PlayerCount}/{targetServer.MaxPlayers}].");
 
+                if (Player.Playing && Flash.IsWorldLoaded)
+                {
+                    ReloginLog("Client connected while preparing the next attempt. Skipping logout.");
+                    return true;
+                }
+
                 if (IsConnected || tries > 1)
                 {
+                    ReloginLog($"Attempt {tries}/{Options.ReloginTries}: resetting login state before retry. " +
+                        $"Playing={Player.Playing}, WorldLoaded={Flash.IsWorldLoaded}, Connected={IsConnected}.");
                     Logout();
                     await Task.Delay(2000, token);
                 }
@@ -573,7 +601,14 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
                     while ((!Player.Playing || !Flash.IsWorldLoaded) && !waitLogin.IsCancellationRequested && !token.IsCancellationRequested)
                         await Task.Delay(250, token);
                 }
-                catch { }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    ReloginLog($"Attempt {tries}/{Options.ReloginTries}: connection wait was cancelled.");
+                }
+                catch (Exception e)
+                {
+                    ReloginLog($"Attempt {tries}/{Options.ReloginTries}: connection wait failed with {e.GetType().Name}: {e.Message}");
+                }
 
                 if (Player.Playing && Flash.IsWorldLoaded)
                 {
@@ -588,7 +623,14 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
                     await WaitReloginDelay(token);
             }
         }
-        catch { }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            ReloginLog("Auto relogin workflow was cancelled.");
+        }
+        catch (Exception e)
+        {
+            ReloginLog($"Auto relogin workflow failed with {e.GetType().Name}: {e.Message}");
+        }
 
         if (!Player.Playing)
             ReloginLog("Unable to reconnect within configured retries.");

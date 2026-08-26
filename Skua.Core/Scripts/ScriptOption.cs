@@ -341,7 +341,7 @@ public partial class ScriptOption : ObservableRecipient, IScriptOption, IOptionD
     private int _reloginTryDelay = 800;
 
     [ObservableProperty]
-    private int _loginTimeout = 5000;
+    private int _loginTimeout = 30000;
 
     [ObservableProperty]
     private HuntPriorities _HuntPriority = HuntPriorities.None;
@@ -397,8 +397,8 @@ public partial class ScriptOption : ObservableRecipient, IScriptOption, IOptionD
             }
         }
 
-        if (LoginTimeout >= 30000)
-            LoginTimeout = 5000;
+        if (LoginTimeout < 30000)
+            LoginTimeout = 30000;
     }
 
     public void ResetToDefault()

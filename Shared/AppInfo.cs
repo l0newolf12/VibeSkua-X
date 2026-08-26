@@ -6,7 +6,7 @@ public static class AppInfo
 {
     public static string Version { get; } = GetVersion();
 
-    public static string Title => $"VibeSkua v{Version}";
+    public static string Title => $"VibeSkuaTEST v{Version}";
 
     private static string GetVersion()
     {

@@ -346,7 +346,7 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
         if ((connDetailLower.Contains("has been lost") || connDetailLower.Contains("restart") || connDetailLower.Contains("maintenance")) && !_waitForLogin)
         {
             Log($"Connection state changed ({connDetail}). Triggering re-login.");
-            _ = OnLogout();
+            _ = OnLogout("connection-state monitor");
         }
         else if (Environment.TickCount - lastConnChange >= Options.LoadTimeout && connDetail == lastConnDetail && !_waitForLogin)
         {
@@ -431,11 +431,15 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
 
         if (Environment.TickCount - _loginStuckTime >= Options.LoginTimeout)
         {
-            Log($"Login stuck on authentication ({combinedStatus.Trim()}) for over {Options.LoginTimeout}ms. Resetting login UI.");
             _loginStuckTime = 0;
+            if (Player.Playing || Flash.IsWorldLoaded || _waitForLogin)
+                return;
+
+            Log($"Login stuck on authentication ({combinedStatus.Trim()}) for over {Options.LoginTimeout}ms. Resetting login UI.");
             try
             {
-                Flash.CallGameFunction("gotoAndPlay", "Login");
+                if (!Player.Playing && !Flash.IsWorldLoaded && !_waitForLogin)
+                    Flash.CallGameFunction("gotoAndPlay", "Login");
             }
             catch { }
 
@@ -443,7 +447,7 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
             if (canRelog && !_waitForLogin)
             {
                 Log("Triggering auto re-login from stuck authentication state.");
-                _ = OnLogout();
+                _ = OnLogout("login-stuck monitor");
             }
         }
     }
@@ -702,7 +706,7 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
                         if (parts.Length >= 5 && parts[4] == "logout")
                         {
                             Messenger.Send<LogoutMessage, int>((int)MessageChannels.GameEvents);
-                            _ = OnLogout();
+                            _ = OnLogout("logout packet");
                         }
                         break;
                 }
@@ -714,48 +718,80 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
     private Task? _reloginTask;
     private volatile bool _waitForLogin;
     private CancellationTokenSource? _reloginCTS;
+    private int _reloginActive;
+    private int _reloginSequence;
+    private int _suppressedReloginTriggers;
 
-    private async Task OnLogout()
+    private async Task OnLogout(string source)
     {
-        if (!Options.AutoRelogin || _waitForLogin)
+        if (!Options.AutoRelogin)
             return;
 
-        if (_reloginTask is not null && !_waitForLogin)
+        if (Interlocked.CompareExchange(ref _reloginActive, 1, 0) != 0)
         {
-            Log("Re-login task already running.");
-            _waitForLogin = true;
+            Interlocked.Increment(ref _suppressedReloginTriggers);
             return;
         }
 
-        Log("Auto re-login triggered.");
-        bool wasRunning = Manager.ScriptRunning;
-        await Manager.StopScript();
-        bool kicked = Player.Kicked;
+        int reloginID = Interlocked.Increment(ref _reloginSequence);
+        Interlocked.Exchange(ref _suppressedReloginTriggers, 0);
         _waitForLogin = true;
-        Messenger.Send<ReloginTriggeredMessage, int>(new(kicked), (int)MessageChannels.GameEvents);
+        try
+        {
+            Log($"[Relogin #{reloginID}] Triggered by {source}. " +
+                $"Playing={Player.Playing}, WorldLoaded={Flash.IsWorldLoaded}, Connected={Servers.IsConnected}, " +
+                $"ScriptRunning={Manager.ScriptRunning}, LoginTimeout={Options.LoginTimeout}ms.");
+            bool wasRunning = Manager.ScriptRunning;
+            await Manager.StopScript();
+            bool kicked = Player.Kicked;
+            Log($"[Relogin #{reloginID}] Script stop completed. " +
+                $"Playing={Player.Playing}, WorldLoaded={Flash.IsWorldLoaded}, Connected={Servers.IsConnected}, Kicked={kicked}.");
+            Messenger.Send<ReloginTriggeredMessage, int>(new(kicked), (int)MessageChannels.GameEvents);
 
-        int delay = (Options.SafeRelogin && kicked) ? 70000 : Options.ReloginTryDelay;
-        Relogin(delay, wasRunning);
+            int delay = (!Options.SafeRelogin && !kicked) ? Options.ReloginTryDelay : 70000;
+            Relogin(delay, wasRunning, reloginID);
+        }
+        catch (Exception e)
+        {
+            _waitForLogin = false;
+            Interlocked.Exchange(ref _reloginActive, 0);
+            Log($"[Relogin #{reloginID}] Setup failed with {e.GetType().Name}: {e.Message}");
+        }
     }
 
-    private void Relogin(int delay, bool startScript)
+    private void Relogin(int delay, bool startScript, int reloginID)
     {
         Servers.Logout();
-        Log($"Waiting {delay}ms for re-login.");
-        _reloginCTS = new CancellationTokenSource();
+        Log($"[Relogin #{reloginID}] Logout requested. Waiting {delay}ms before re-login.");
+        CancellationTokenSource reloginCTS = new();
+        _reloginCTS = reloginCTS;
         _reloginTask = Schedule(delay, async _ =>
         {
-            Stats.Relogins++;
-            bool relogged = await Servers.EnsureRelogin(_reloginCTS.Token);
-            if (startScript && relogged)
-                await Ioc.Default.GetService<IScriptManager>()!.StartScript();
-            else if (startScript && !relogged)
-                Log("Skipping script restart because re-login did not succeed.");
-            Log($"Re-login was {(relogged ? "successful" : "cancelled or unsuccessful")}.");
-            _reloginCTS.Dispose();
-            _reloginCTS = null;
-            _reloginTask = null;
-            _waitForLogin = false;
+            try
+            {
+                Stats.Relogins++;
+                bool relogged = await Servers.EnsureRelogin(reloginCTS.Token);
+                if (startScript && relogged)
+                    await Ioc.Default.GetService<IScriptManager>()!.StartScript();
+                else if (startScript && !relogged)
+                    Log($"[Relogin #{reloginID}] Skipping script restart because re-login did not succeed.");
+                Log($"[Relogin #{reloginID}] Re-login was {(relogged ? "successful" : "cancelled or unsuccessful")}. " +
+                    $"Playing={Player.Playing}, WorldLoaded={Flash.IsWorldLoaded}, Connected={Servers.IsConnected}.");
+            }
+            catch (Exception e)
+            {
+                Log($"[Relogin #{reloginID}] Failed with {e.GetType().Name}: {e.Message}");
+            }
+            finally
+            {
+                int suppressedTriggers = Interlocked.Exchange(ref _suppressedReloginTriggers, 0);
+                reloginCTS.Dispose();
+                _reloginCTS = null;
+                _reloginTask = null;
+                _waitForLogin = false;
+                Interlocked.Exchange(ref _reloginActive, 0);
+                Log($"[Relogin #{reloginID}] Workflow finished. Suppressed duplicate triggers: {suppressedTriggers}.");
+            }
         });
     }
 

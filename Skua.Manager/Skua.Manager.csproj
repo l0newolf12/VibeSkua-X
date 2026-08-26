@@ -13,8 +13,8 @@
     <NeutralLanguage>en</NeutralLanguage>
     <ApplicationIcon>SkuaIcon.ico</ApplicationIcon>
     <ProduceReferenceAssembly>False</ProduceReferenceAssembly>
-    <Product>VibeSkua Manager</Product>
-    <Title>VibeSkua Manager</Title>
+    <Product>VibeSkuaTEST Manager</Product>
+    <Title>VibeSkuaTEST Manager</Title>
   </PropertyGroup>
 
   <ItemGroup>

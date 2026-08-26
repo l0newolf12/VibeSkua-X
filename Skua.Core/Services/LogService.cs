@@ -14,12 +14,15 @@ public class LogService : ObservableRecipient, ILogService, IDisposable
     private readonly object _debugLock = new();
     private readonly object _scriptLock = new();
     private readonly object _flashLock = new();
+    private string? _playerUsername;
 
     public LogService()
     {
         _debugListener = new DebugListener(this);
         Trace.Listeners.Add(_debugListener);
         Messenger.Register<LogService, FlashErrorMessage>(this, LogFlashError);
+        Messenger.Register<LogService, LoginMessage, int>(this, (int)MessageChannels.GameEvents,
+            static (recipient, message) => recipient._playerUsername = message.Username);
     }
 
     private void LogFlashError(LogService recipient, FlashErrorMessage message)
@@ -33,6 +36,7 @@ public class LogService : ObservableRecipient, ILogService, IDisposable
 
     public void DebugLog(string message)
     {
+        message = AnonymizePlayerName(message);
         lock (_debugLock)
         {
             if (_debugLogs.Count >= MaxLogEntries)
@@ -47,6 +51,7 @@ public class LogService : ObservableRecipient, ILogService, IDisposable
     {
         if (message is null)
             return;
+        message = AnonymizePlayerName(message);
         lock (_flashLock)
         {
             if (_flashLogs.Count >= MaxLogEntries)
@@ -61,6 +66,7 @@ public class LogService : ObservableRecipient, ILogService, IDisposable
     {
         if (message is null)
             return;
+        message = AnonymizePlayerName(message);
         lock (_scriptLock)
         {
             if (_scriptLogs.Count >= MaxLogEntries)
@@ -69,6 +75,14 @@ public class LogService : ObservableRecipient, ILogService, IDisposable
         }
         Messenger.Send(new LogsChangedMessage(LogType.Script));
         Messenger.Send(new AddLogMessage(LogType.Script, message));
+    }
+
+    private string AnonymizePlayerName(string message)
+    {
+        string? username = _playerUsername;
+        return string.IsNullOrWhiteSpace(username)
+            ? message
+            : message.Replace(username, "TestPlayer", StringComparison.OrdinalIgnoreCase);
     }
 
     public void ClearLog(LogType logType)
