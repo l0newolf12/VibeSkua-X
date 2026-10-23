@@ -12,6 +12,8 @@ All commits must be authored solely by the user. Use the user's Git author ident
 
 Use Conventional Commits for commit messages: `type(optional-scope): description`, for example `feat(core): add loadout validation` or `fix: handle missing settings`.
 
+Work on and push to `main` unless the user explicitly requests a different branch.
+
 Read [docs/PROJECT.md](docs/PROJECT.md) for project goals, agreed architecture, the current milestone, and the rough UI design reference. Keep project descriptions and design decisions there; keep this file focused on working instructions.
 
 Preserve existing Skua script compatibility. Validate relevant script-facing changes with representative scripts and discuss any required compatibility break before implementing it.
