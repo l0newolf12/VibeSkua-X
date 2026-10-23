@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <UseWindowsForms>true</UseWindowsForms>
+    <DefineConstants>$(DefineConstants);IS_WINDOWS</DefineConstants>
+    <AssemblyName>VibeSkuaX.Runtime.Windows</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Skua.Core\Skua.Core.csproj" />
+    <PackageReference Include="CoreHook" />
+    <Reference Include="AxInterop.ShockwaveFlashObjects">
+      <HintPath>Assemblies\AxInterop.ShockwaveFlashObjects.dll</HintPath>
+    </Reference>
+    <Reference Include="Interop.ShockwaveFlashObjects">
+      <HintPath>Assemblies\Interop.ShockwaveFlashObjects.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Assemblies\core*.dll" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\Skua.AS3\skua\bin\skua.swf" Link="skua.swf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,13 @@
+<Project>
+  <Target Name="ValidateFoundationArchitecture" BeforeTargets="ResolveReferences"
+    Condition="$([System.String]::Copy('$(MSBuildProjectName)').StartsWith('Skua.Core')) Or '$(MSBuildProjectName)' == 'VibeSkuaX.Runtime.Windows' Or '$(MSBuildProjectName)' == 'Skua.Plugin.ButlerV5'">
+    <ItemGroup>
+      <_PresentationReferences Include="@(ProjectReference)"
+        Condition="$([System.String]::Copy('%(ProjectReference.Filename)').Contains('.Avalonia'))" />
+      <_PresentationPackages Include="@(PackageReference)"
+        Condition="$([System.String]::Copy('%(PackageReference.Identity)').StartsWith('Avalonia')) Or $([System.String]::Copy('%(PackageReference.Identity)').StartsWith('Material.'))" />
+    </ItemGroup>
+    <Error Condition="'@(_PresentationReferences)' != '' Or '@(_PresentationPackages)' != ''"
+      Text="VibeSkua X foundation projects must not reference the removed presentation layer." />
+  </Target>
+</Project>

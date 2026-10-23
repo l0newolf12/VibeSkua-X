@@ -1,0 +1,22 @@
+name: Build VibeSkua X
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build foundation
+        run: dotnet build VibeSkuaX.sln -c Release --nologo
+      - name: Check foundation behavior
+        run: dotnet run --project tests/VibeSkuaX.Foundation.Tests -c Release --no-build
