@@ -5,12 +5,16 @@ and core engine. The previous Avalonia views, view models, launcher, controls,
 themes, and plugin windows have been removed so a new presentation layer can
 be designed from a clean foundation.
 
-The Windows x64 desktop prototype now has a custom title bar and a single game
-viewport. It hosts the Flash ActiveX control through WinForms inside the Avalonia
+The Windows x64 desktop prototype has a custom title bar with account tabs and
+multiple independent live games. It hosts each Flash ActiveX control through WinForms inside the Avalonia
 window, using Avalonia's native-control hosting support. The user has confirmed
-that it displays the game's login screen.
+that it displays the game's login screen. Startup opens one game; **+** opens another.
+Switch tabs to change games. Tab close asks for confirmation, failed games offer
+**Retry**, and closing the last tab leaves an **Open game** action. Login is manual.
 
 Project goals, the agreed architecture, the first milestone, and the rough UI reference are documented in [docs/PROJECT.md](docs/PROJECT.md).
+
+The UI's shared palette, dimensions, typography, control states, and implementation rules are defined in [docs/VISUAL-SYSTEM.md](docs/VISUAL-SYSTEM.md), backed by reusable resources in `VibeSkuaX.App/Styles/`.
 
 ## Retained foundation
 
@@ -60,6 +64,10 @@ includes concurrently. They check bot/global ownership, messages, compiler
 registries, polling cancellation, failure, restart, cleanup exceptions, active
 disposal, and disposal during startup. Game/platform dependencies are fakes.
 
+The foundation runner prints exception details and exits with code 1 on failure.
+Use `-- --verify-failure-exit` with its run command to intentionally exercise this
+error-reporting path; that probe should exit with code 1 without a Windows crash dialog.
+
 Run the shell checks without a visible window or Flash installation:
 
     dotnet run --project tests/VibeSkuaX.Shell.Tests -c Release --no-build
@@ -67,6 +75,16 @@ Run the shell checks without a visible window or Flash installation:
 These load the actual shell with Avalonia's headless platform, exercise the
 caption buttons with simulated mouse input, check layout/error bindings and
 close/disposal behavior, and save a render to artifacts/shell-tests/shell.png.
+They also verify shared brush updates and stable caption geometry across hover,
+pressed, maximize/restore, and disabled states. Tab checks cover add/select,
+stable geometry and dividers, overflow at minimum width, per-game failure/retry,
+close confirmation/Escape, adjacent selection, empty state, and all-session cleanup.
+They also check close/divider/add center-line alignment and tooltip placement when
+moving directly between controls, including closing the old tooltip on leave.
+The shell and owned confirmation share `Controls/WindowTitleBar`. Checks cover its
+default title, title/capability updates, dialog content layout, and safe caption close.
+Rendered pixels check immediate caption hover/leave feedback without gray/pink
+flashes. Caption buttons retain only Windows' native tooltips.
 The native Flash viewport is not rendered by the headless platform. These checks
 also exercise the actual Flash XML codec under en-US and fr-FR, callback argument
 shapes, typed/raw cancellation, and ordinary call fallbacks. Source/binary hashes
@@ -84,19 +102,31 @@ double-click maximize, caption input, minimize/restore, maximized work-area
 bounds, and the WinForms/ActiveX bounds after each resize. The same game
 controls must survive those changes. It also checks cancelled close, close
 before deferred startup, partial Flash initialization failure, handle cleanup,
-and actual application exit. Each worker process has a 70-second deadline.
+and actual application exit. Each worker process has a 180-second deadline,
+allowing several independent game loads and a retry.
 The loaded game file/version is recorded. The same runtime must survive an
 isolated call error and deferred detach/reattach. Native popups and owned dialogs
 are checked above the real Flash surface. A loopback HTTP fixture exercises
 unavailable version data, malformed JSON, unavailable SWFs, the startup deadline,
 and close while loading. Late callbacks must not revive failed/closed sessions.
+Two real clients must preserve their handles, runtime, and temporary client-state
+markers across native tab clicks, with only the selected game visible and focused.
+The actual tab-close confirmation must appear above Flash. Failure, retry, and
+confirmed close must leave the other game usable; application shutdown must also
+destroy an inactive live game. Fixture data checks character names and logout.
+Native tooltip checks verify placement beneath each current tab above Flash and
+preserved game focus. They briefly move only the test-owned window onto a monitor
+to avoid off-screen popup clamping, then restore its previous position.
+The actual confirmation's shared title bar is checked for native drag/close roles,
+immediate caption feedback, fixed-window behavior, and cancellation through Close.
+These checks do not log into accounts; real login continuity needs user verification.
 An AS3 fixture runs the production inventory bridge against the supplied
 Game4000r5 InvCat class, with stack, inventory-pool, and bank-swap cases.
 
 A second worker runs from a temporary copy of the build without skua.swf to
 verify the real startup error and cleanup; the copy is removed afterwards.
 Results are saved to artifacts/shell-tests/native-result.json and
-native-startup-failure.json, with additional native-session-checks.json and
+native-startup-failure.json, with additional native-account-tabs.json, native-session-checks.json and
 inventory-contract.json results. Native chrome is captured to native-titlebar.png
 without capturing account fields. Windows retains its normal thin border;
 the custom title bar fills the extended client area without the old blank strip.
@@ -123,9 +153,9 @@ establish client behavior for this snapshot, not server acceptance of inventory 
 - UI views and view models live in VibeSkuaX.App. The retained models and core
   engine have no Avalonia dependency.
 - Dialog requests use plain option values and text; navigation uses TravelDestination.
-- The first milestone uses one in-process game session. Multi-account hosting
-  and the scripting workflow are future work; the earlier separate host-process
-  proposal is deferred.
+- Each tab owns one in-process game session; selecting it changes visibility/focus.
+  The scripting workflow is future work; the earlier separate host-process proposal
+  is deferred.
 - The Windows bridge still uses the existing ActiveX/WinForms runtime for Flash.
   It contains no application screens and reports initialization failures as exceptions.
 - Daily Tracker's previous window and UI-only plugin entry point were removed.

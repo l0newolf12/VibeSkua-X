@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.Messaging;
 using Skua.Core.Messaging;
@@ -23,6 +24,7 @@ internal sealed class GameSession : IDisposable
     private readonly GameSessionOptions _options;
     private readonly WeakReferenceMessenger _messenger = new();
     private readonly CancellationTokenSource _startup = new();
+    private readonly DispatcherTimer _identityTimer;
     private WinForms.Panel? _container;
     private FlashUtil? _runtime;
 
@@ -30,6 +32,8 @@ internal sealed class GameSession : IDisposable
     {
         _options = options ?? new();
         if (_options.StartupTimeout <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(options));
+        _identityTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _identityTimer.Tick += (_, _) => RefreshCharacterName();
         _messenger.Register<GameSession, FlashErrorMessage>(this, (session, message) =>
             Dispatcher.UIThread.Post(() =>
             {
@@ -44,11 +48,13 @@ internal sealed class GameSession : IDisposable
     public GameSessionState State { get; private set; } = GameSessionState.Starting;
     public string? Error { get; private set; }
     public string? GameFile { get; private set; }
+    public string? CharacterName { get; private set; }
     public IntPtr ContainerHandle => _container is { IsHandleCreated: true } ? _container.Handle : IntPtr.Zero;
     internal FlashUtil? Runtime => _runtime;
     internal IMessenger Messenger => _messenger;
     public event Action<GameSessionState, string?>? StateChanged;
     public event Action<FlashErrorMessage>? OperationFailed;
+    public event Action? CharacterNameChanged;
 
     public IntPtr EnsureControl()
     {
@@ -111,6 +117,7 @@ internal sealed class GameSession : IDisposable
                 GameFile = arguments.ElementAtOrDefault(0)?.ToString();
                 _startup.Cancel();
                 SetState(GameSessionState.Ready);
+                _identityTimer.Start();
                 break;
             case "gameLoadFailed":
                 string phase = arguments.ElementAtOrDefault(0)?.ToString() ?? "game load";
@@ -134,8 +141,35 @@ internal sealed class GameSession : IDisposable
         StateChanged?.Invoke(state, error);
     }
 
+    internal void FocusGame()
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (State == GameSessionState.Ready && _container is { IsDisposed: false })
+            _container.Controls.OfType<WinForms.AxHost>().FirstOrDefault()?.Focus();
+    }
+
+    private void RefreshCharacterName()
+    {
+        if (State != GameSessionState.Ready || _runtime is null) return;
+        string? name = null;
+        if (_runtime.Call<bool>("isLoggedIn"))
+        {
+            string json = _runtime.Call("getGameObject", "world.myAvatar.objData.strUsername");
+            if (!string.IsNullOrWhiteSpace(json))
+            {
+                try { name = JsonSerializer.Deserialize<string>(json)?.Trim(); }
+                catch (JsonException) { } // Character data can be absent during login/map transitions.
+            }
+        }
+        if (string.IsNullOrWhiteSpace(name)) name = null;
+        if (name == CharacterName) return;
+        CharacterName = name;
+        CharacterNameChanged?.Invoke();
+    }
+
     private void ReleaseRuntime()
     {
+        _identityTimer.Stop();
         _startup.Cancel();
         if (_runtime is not null)
         {

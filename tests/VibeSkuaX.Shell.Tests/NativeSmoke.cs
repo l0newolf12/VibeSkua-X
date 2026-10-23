@@ -1,12 +1,14 @@
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Primitives.PopupPositioning;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using AxShockwaveFlashObjects;
 using CommunityToolkit.Mvvm.Messaging;
 using Skua.Core.Messaging;
@@ -14,6 +16,7 @@ using VibeSkuaX.App.Controls;
 using VibeSkuaX.App.Features.Shell;
 using VibeSkuaX.App.Sessions;
 using VibeSkuaX.Runtime.Windows.Flash;
+using FluentAvalonia.UI.Controls;
 
 namespace VibeSkuaX.Shell.Tests;
 
@@ -54,7 +57,7 @@ internal static class NativeSmoke
 
     private static async Task CheckWindow(ShellWindow window)
     {
-        var viewport = window.FindControl<FlashViewport>("GameViewport")!;
+        var viewport = window.SelectedViewport!;
         var loaded = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void Status(string status, string? error)
         {
@@ -85,6 +88,7 @@ internal static class NativeSmoke
             int topInset = CheckTopFrame(handle);
             await WaitForViewport(window, container, flash);
             SaveChromeCapture(handle, window.RenderScaling);
+            await CheckCaptionHover(window);
 
             int operationErrors = 0;
             viewport.Session.OperationFailed += _ => operationErrors++;
@@ -132,6 +136,8 @@ internal static class NativeSmoke
             var captionPoint = window.FindControl<Border>("TitleDragArea")!.PointToScreen(new Point(200, 20));
             SendMessage(handle, 0x00A3 /* WM_NCLBUTTONDBLCLK */, new IntPtr(2), Pack(captionPoint.X, captionPoint.Y));
             await Until(() => IsZoomed(handle) && window.WindowState == WindowState.Maximized, "Title-bar double-click did not maximize.");
+            Program.Check(AutomationProperties.GetName(window.FindChrome<Button>("MaximizeButton")!) == "Restore",
+                "Maximized caption has the wrong accessible action name.");
             await WaitForViewport(window, container, flash);
             var workArea = window.Screens.ScreenFromWindow(window)!.WorkingArea;
             GetClientRect(handle, out var maxClient);
@@ -140,9 +146,23 @@ internal static class NativeSmoke
             Program.Check(origin.X == workArea.X && origin.Y == workArea.Y &&
                 maxClient.Width == workArea.Width && maxClient.Height == workArea.Height,
                 $"Maximized client does not fit the work area: {origin.X},{origin.Y} {maxClient.Width}x{maxClient.Height}; expected {workArea}.");
+            SetFocus(flash);
+            IntPtr gameFocus = GetFocus();
+            Program.Check(gameFocus == flash || IsChild(flash, gameFocus), "Could not focus the real Flash surface.");
             await NativeClick(window, "MaximizeButton", 9);
             await Until(() => !IsZoomed(handle) && window.WindowState == WindowState.Normal, "Restore button did not restore.");
+            Program.Check(AutomationProperties.GetName(window.FindChrome<Button>("MaximizeButton")!) == "Maximize",
+                "Restored caption has the wrong accessible action name.");
             await WaitForViewport(window, container, flash);
+            Program.Check(GetFocus() == gameFocus, "Restoring with the caption button took native focus from Flash.");
+            await NativeClick(window, "MaximizeButton", 9);
+            await Until(() => IsZoomed(handle), "Focus-check maximize did not maximize.");
+            Program.Check(GetFocus() == gameFocus, "Maximizing with the caption button took native focus from Flash.");
+            await NativeClick(window, "MaximizeButton", 9);
+            await Until(() => !IsZoomed(handle), "Focus-check restore did not restore.");
+            await WaitForViewport(window, container, flash);
+            Program.Check(GetFocus() == gameFocus, "Repeated caption actions took native focus from Flash.");
+            Console.WriteLine("PASS: maximize/restore caption clicks preserve native Flash keyboard focus.");
             Program.Check(WindowRect(handle).Equals(restoreBounds), "Restore did not preserve normal window bounds.");
             await NativeClick(window, "MinimizeButton", 8);
             await Until(() => IsIconic(handle) && window.WindowState == WindowState.Minimized, "Minimize button did not minimize.");
@@ -151,6 +171,7 @@ internal static class NativeSmoke
             await WaitForViewport(window, container, flash);
             Console.WriteLine("PASS: native title-bar double-click, caption button input, minimize/restore, and maximized work area.");
             CheckPartialInitializationCleanup();
+            await CheckAccountTabs(window, viewport);
             await NativeSessionChecks.Run(_artifacts);
 
             // Cancel an actual native close request; it must leave the live game intact.
@@ -164,7 +185,7 @@ internal static class NativeSmoke
             var earlyClose = new ShellWindow { ShowInTaskbar = false, ShowActivated = false,
                 WindowStartupLocation = WindowStartupLocation.Manual, Position = new PixelPoint(-30000, -30000) };
             earlyClose.Show();
-            var earlyViewport = earlyClose.FindControl<FlashViewport>("GameViewport")!;
+            var earlyViewport = earlyClose.SelectedViewport!;
             IntPtr earlyChild = earlyViewport.ContainerHandle;
             Program.Check(earlyChild != IntPtr.Zero, "Early-close fixture did not create its native container.");
             earlyClose.Close();
@@ -182,6 +203,7 @@ internal static class NativeSmoke
                 DeferredDetachPreservesGame = true, NativePopupAndOwnedDialog = true,
                 RenderScaling = window.RenderScaling,
                 CaptionHitTargets = true, NativeCaptionInput = true, MaximizedFitsWorkArea = true,
+                ImmediateCaptionHover = true, NativeCaptionTooltipsOnly = true,
                 TopFrameInsetPixels = topInset, FlashFillsViewport = true, FlashSessionPreserved = true,
                 CancelledClosePreservesGame = true, EarlyCloseDisposes = true,
                 PartialInitializationCleanup = true, StartupHookReleased = !EoLHook.IsHooked,
@@ -196,6 +218,216 @@ internal static class NativeSmoke
             viewport.StatusChanged -= Status;
             window.Close();
         }
+    }
+
+    private static async Task CheckAccountTabs(ShellWindow window, FlashViewport firstViewport)
+    {
+        var model = (ShellViewModel)window.DataContext!;
+        var tabs = window.FindControl<FATabView>("AccountTabs")!;
+        var first = model.SelectedTab!;
+        var firstRuntime = first.Session.Runtime!;
+        IntPtr firstContainer = firstViewport.ContainerHandle;
+        IntPtr firstFlash = FindWindowEx(firstContainer, IntPtr.Zero, null, null);
+        var add = tabs.GetVisualDescendants().OfType<Button>().Single(b => b.Name == "AddButton");
+        await ClientClick(window, add);
+        var second = model.SelectedTab!;
+        Program.Check(second != first && model.Tabs.Count == 2, "Native add button did not create/select a game.");
+        await WaitReady(second);
+        var secondViewport = window.SelectedViewport!;
+        var secondRuntime = second.Session.Runtime!;
+        IntPtr secondContainer = secondViewport.ContainerHandle;
+        IntPtr secondFlash = FindWindowEx(secondContainer, IntPtr.Zero, null, null);
+        Program.Check(firstContainer != secondContainer && firstFlash != secondFlash && firstRuntime != secondRuntime,
+            "Two tabs share a native container, Flash control, or runtime.");
+        // mcLogin is a dynamic MovieClip in the supplied client snapshot. A test-only
+        // marker avoids login fields, which the game's frame scripts initialize later.
+        const string field = "mcLogin.vsxSessionCheck";
+        await Until(() => int.TryParse(firstRuntime.Call("getGameObject", "mcLogin.currentFrame"), out int a) && a > 0 &&
+            int.TryParse(secondRuntime.Call("getGameObject", "mcLogin.currentFrame"), out int b) && b > 0,
+            "Loaded clients did not construct their login clips.");
+        try
+        {
+            firstRuntime.Call("setGameObject", field, "session-one-check");
+            secondRuntime.Call("setGameObject", field, "session-two-check");
+            for (int i = 0; i < 4; i++)
+            {
+                var selected = i % 2 == 0 ? first : second;
+                var active = i % 2 == 0 ? firstViewport : secondViewport;
+                IntPtr activeFlash = i % 2 == 0 ? firstFlash : secondFlash;
+                IntPtr inactiveContainer = i % 2 == 0 ? secondContainer : firstContainer;
+                await ClientClick(window, tabs.ContainerFromItem(selected));
+                await Until(() => model.SelectedTab == selected && IsWindowVisible(active.ContainerHandle) && !IsWindowVisible(inactiveContainer),
+                    "Native tab selection did not show only the selected game.");
+                await WaitForViewport(window, active.ContainerHandle, activeFlash);
+                await Until(() => GetFocus() == activeFlash || IsChild(activeFlash, GetFocus()), "Tab selection did not focus the selected Flash game.");
+                Program.Check(ReferenceEquals(firstRuntime, first.Session.Runtime) && ReferenceEquals(secondRuntime, second.Session.Runtime) &&
+                    firstViewport.ContainerHandle == firstContainer && secondViewport.ContainerHandle == secondContainer &&
+                    IsWindow(firstFlash) && IsWindow(secondFlash), "Tab switching replaced or destroyed a running game.");
+                string firstMarker = firstRuntime.Call("getGameObject", field);
+                string secondMarker = secondRuntime.Call("getGameObject", field);
+                Program.Check(JsonSerializer.Deserialize<string>(firstMarker) == "session-one-check" &&
+                    JsonSerializer.Deserialize<string>(secondMarker) == "session-two-check",
+                    $"Switching lost test marker state at switch {i}: {firstMarker} / {secondMarker}.");
+            }
+        }
+        finally
+        {
+            firstRuntime.Call("setGameObject", field, null!);
+            secondRuntime.Call("setGameObject", field, null!);
+        }
+
+        await CheckTabToolTips(window, tabs, secondFlash);
+
+        Task cancelled = window.RequestCloseTabAsync(second);
+        var dialog = window.CloseConfirmation!;
+        await Until(() => dialog.IsVisible && dialog.TryGetPlatformHandle() is not null, "Close confirmation did not open.");
+        IntPtr dialogHandle = dialog.TryGetPlatformHandle()!.Handle;
+        IntPtr ownerHandle = window.TryGetPlatformHandle()!.Handle;
+        // CenterOwner may clamp an off-screen dialog to a monitor; move only our own test window over the game.
+        var gameBounds = WindowRect(secondFlash);
+        SetWindowPos(dialogHandle, IntPtr.Zero, gameBounds.Left + 40, gameBounds.Top + 40, 0, 0, 0x0015);
+        Program.Check(dialogHandle != ownerHandle && IsAbove(dialogHandle, ownerHandle) && Overlaps(WindowRect(dialogHandle), WindowRect(secondFlash)),
+            "Actual close confirmation does not cover the native Flash surface.");
+        Program.Check(dialog.WindowDecorations == WindowDecorations.BorderOnly && dialog.ExtendClientAreaToDecorationsHint &&
+            !dialog.FindChrome<Button>("MinimizeButton")!.IsVisible && !dialog.FindChrome<Button>("MaximizeButton")!.IsVisible,
+            "Confirmation did not use the shared close-only native chrome.");
+        CheckTopFrame(dialogHandle);
+        var dragPoint = await ChromeTarget(dialog, "TitleDragArea", 2);
+        SendMessage(dialogHandle, 0x00A3 /* WM_NCLBUTTONDBLCLK */, new IntPtr(2), Pack(dragPoint.X, dragPoint.Y));
+        Program.Check(!IsZoomed(dialogHandle), "Double-click maximized a fixed confirmation dialog.");
+        await CheckCaptionHover(dialog);
+        await NativeClick(dialog, "CloseButton", 20);
+        await cancelled;
+        Program.Check(model.Tabs.Count == 2 && IsWindow(firstFlash) && IsWindow(secondFlash), "Cancelled confirmation destroyed a live game.");
+        await Until(() => GetFocus() == secondFlash || IsChild(secondFlash, GetFocus()), "Cancelling confirmation did not restore game focus.");
+
+        second.Session.Messenger.Send(new FlashRuntimeFailedMessage(new COMException("Tab isolation check")));
+        await Until(() => second.HasError, "Injected tab failure was not reported.");
+        Program.Check(!IsWindow(secondContainer) && !IsWindow(secondFlash) && IsWindow(firstFlash) && firstRuntime.Call<bool>("isTrue"),
+            "Failure did not clean up just the affected native game.");
+        var failed = second.Session;
+        second.RetryCommand.Execute(null);
+        await WaitReady(second);
+        var replacement = window.SelectedViewport!;
+        IntPtr replacementContainer = replacement.ContainerHandle;
+        IntPtr replacementFlash = FindWindowEx(replacementContainer, IntPtr.Zero, null, null);
+        Program.Check(failed.State == GameSessionState.Disposed && second.Session != failed && second.Session.Runtime != secondRuntime &&
+            IsWindow(replacementFlash) && IsWindow(firstFlash) && ReferenceEquals(firstRuntime, first.Session.Runtime),
+            "Retry replaced the wrong session or failed to start a fresh game.");
+        Task confirmed = window.RequestCloseTabAsync(second);
+        window.CloseConfirmation!.FindControl<Button>("ConfirmGameClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await confirmed;
+        await Until(() => model.SelectedTab == first && IsWindowVisible(firstContainer), "Closing the selected tab did not restore the remaining game.");
+        await WaitForViewport(window, firstContainer, firstFlash);
+        Program.Check(!IsWindow(replacementContainer) && !IsWindow(replacementFlash) && replacement.IsDisposed && firstRuntime.Call<bool>("isTrue"),
+            "Confirmed tab close affected the surviving game or leaked its replacement.");
+        // Leave a second live session for the existing cancelled-close and final application-shutdown checks.
+        model.OpenGameCommand.Execute(null);
+        await WaitReady(model.SelectedTab!);
+        var background = window.SelectedViewport!;
+        IntPtr backgroundContainer = background.ContainerHandle;
+        IntPtr backgroundFlash = FindWindowEx(backgroundContainer, IntPtr.Zero, null, null);
+        model.SelectedTab = first;
+        await WaitForViewport(window, firstContainer, firstFlash);
+        window.Closed += (_, _) => Program.Check(background.IsDisposed && !IsWindow(backgroundContainer) && !IsWindow(backgroundFlash),
+            "Application close leaked an inactive live game.");
+        File.WriteAllText(Path.Combine(_artifacts, "native-account-tabs.json"), JsonSerializer.Serialize(new
+        {
+            TwoRealGames = true, SwitchesPreserveHandlesRuntimeAndState = true, InactiveCallsIsolated = true,
+            OnlySelectedGameVisible = true, NativeTabAndAddInput = true, SelectedFlashKeyboardFocus = true,
+            ConfirmationAboveFlash = true, CancelPreservesGamesAndFocus = true, FailureAndRetryIsolated = true,
+            ToolTipsFollowCurrentTabAboveFlashWithoutTakingFocus = true,
+            ConfirmedCloseDisposesOnlyItsGame = true, BackgroundCleanupCheckedOnApplicationClose = true,
+            FirstGameFile = first.Session.GameFile, SecondGameFile = second.Session.GameFile
+        }, new JsonSerializerOptions { WriteIndented = true }));
+        Console.WriteLine("PASS: two real games preserve state/handles across native tab input; focus, confirmation, failure, retry, and close are isolated.");
+    }
+
+    private static async Task CheckTabToolTips(ShellWindow window, FATabView tabs, IntPtr flash)
+    {
+        Control[] owners = [tabs.ContainerFromIndex(0), tabs.ContainerFromIndex(1)];
+        object?[] originalTips = owners.Select(ToolTip.GetTip).ToArray();
+        var tips = new[] { new ToolTip { Content = "First game" }, new ToolTip { Content = "Second game" } };
+        IntPtr handle = window.TryGetPlatformHandle()!.Handle;
+        var previous = WindowRect(handle);
+        var workArea = (window.Screens.ScreenFromWindow(window) ?? window.Screens.Primary ?? window.Screens.All.First()).WorkingArea;
+        IntPtr focus = GetFocus();
+        // Keep the test-owned window within a monitor for this check: off-screen
+        // owners would intentionally clamp both tooltips to the same screen edge.
+        SetWindowPos(handle, IntPtr.Zero, workArea.X + 80, workArea.Y + 80, 0, 0, 0x0015);
+        try
+        {
+            for (int i = 0; i < owners.Length; i++) ToolTip.SetTip(owners[i], tips[i]);
+            ToolTip.SetShowDelay(owners[0], 0);
+            PixelPoint? firstPosition = null;
+            for (int i = 0; i < owners.Length; i++)
+            {
+                var owner = owners[i];
+                var screen = owner.PointToScreen(new Point(20, 20));
+                var origin = new NativePoint();
+                ClientToScreen(handle, ref origin);
+                SendMessage(handle, 0x0200 /* WM_MOUSEMOVE */, IntPtr.Zero, Pack(screen.X - origin.X, screen.Y - origin.Y));
+                var tip = tips[i];
+                await Until(() => ToolTip.GetIsOpen(owner) && TopLevel.GetTopLevel(tip) is PopupRoot,
+                    "Tab tooltip did not open a native popup.");
+                await Until(() =>
+                {
+                    var expected = owner.PointToScreen(new Point(owner.Bounds.Width / 2, owner.Bounds.Height));
+                    var actual = tip.PointToScreen(new Point(tip.Bounds.Width / 2, 0));
+                    return Math.Abs(actual.X - expected.X) <= 1 &&
+                        Math.Abs(actual.Y - expected.Y - 8 * window.RenderScaling) <= 1;
+                }, "Native tooltip did not anchor beneath its current tab.");
+                var root = (PopupRoot)TopLevel.GetTopLevel(tip)!;
+                IntPtr popup = root.TryGetPlatformHandle()!.Handle;
+                Program.Check(IsAbove(popup, handle) && Overlaps(WindowRect(popup), WindowRect(flash)),
+                    "Tab tooltip is not above the native Flash surface.");
+                Program.Check(GetFocus() == focus, "Showing or switching tab tooltips stole game keyboard focus.");
+                var position = tip.PointToScreen(default);
+                if (i == 0) firstPosition = position;
+                else Program.Check(!ToolTip.GetIsOpen(owners[0]) && position.X > firstPosition!.Value.X + 80,
+                    "Tooltip content switched at its previous owner's position.");
+            }
+            Console.WriteLine("PASS: native tooltips move to each current tab above Flash without taking game focus.");
+        }
+        finally
+        {
+            for (int i = 0; i < owners.Length; i++)
+            {
+                ToolTip.SetIsOpen(owners[i], false);
+                ToolTip.SetTip(owners[i], originalTips[i]);
+            }
+            owners[0].ClearValue(ToolTip.ShowDelayProperty);
+            SetWindowPos(handle, IntPtr.Zero, previous.Left, previous.Top, 0, 0, 0x0015);
+        }
+    }
+
+    private static async Task WaitReady(GameTabViewModel tab)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(35);
+        while (tab.Session.State != GameSessionState.Ready)
+        {
+            if (tab.HasError) throw new Exception(tab.ErrorMessage);
+            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Another real game did not load within 35 seconds.");
+            await Task.Delay(20);
+        }
+    }
+
+    private static async Task ClientClick(Window window, Control control)
+    {
+        PixelPoint screen = default;
+        await Until(() =>
+        {
+            screen = control.PointToScreen(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2));
+            return control.Bounds.Width > 0 && HitTest(window.TryGetPlatformHandle()!.Handle, screen.X, screen.Y) == 1;
+        }, "Tab/add control is not a native client input target.");
+        var origin = new NativePoint();
+        IntPtr handle = window.TryGetPlatformHandle()!.Handle;
+        ClientToScreen(handle, ref origin);
+        var position = Pack(screen.X - origin.X, screen.Y - origin.Y);
+        SendMessage(handle, 0x0200, IntPtr.Zero, position);
+        SendMessage(handle, 0x0201, new IntPtr(1), position);
+        SendMessage(handle, 0x0202, IntPtr.Zero, position);
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
     }
 
     private static async Task CheckNativeOverlays(ShellWindow owner, FlashViewport viewport, IntPtr flash)
@@ -338,7 +570,7 @@ internal static class NativeSmoke
 
     private static async Task WaitForViewport(ShellWindow window, IntPtr container, IntPtr flash)
     {
-        var viewport = window.FindControl<FlashViewport>("GameViewport")!;
+        var viewport = window.SelectedViewport!;
         await Until(() =>
         {
             window.UpdateLayout();
@@ -373,6 +605,26 @@ internal static class NativeSmoke
         finally { Marshal.FreeHGlobal(memory); }
     }
 
+    private static async Task CheckCaptionHover(Window window)
+    {
+        IntPtr handle = window.TryGetPlatformHandle()!.Handle;
+        (string Name, int Role)[] targets = [("CloseButton", 20), ("MaximizeButton", 9), ("MinimizeButton", 8), ("CloseButton", 20)];
+        foreach (var target in targets)
+        {
+            var button = window.FindChrome<Button>(target.Name)!;
+            if (!button.IsVisible) continue;
+            var point = await ChromeTarget(window, target.Name, target.Role);
+            SendMessage(handle, 0x00A0 /* WM_NCMOUSEMOVE */, new IntPtr(target.Role), Pack(point.X, point.Y));
+            Program.Check(button.IsPointerOver, $"Native hover did not reach {target.Name}.");
+            CaptionChecks.AssertBackground(button, true);
+            Program.Check(ToolTip.GetTip(button) is null, "Caption has a duplicate Avalonia tooltip.");
+            SendMessage(handle, 0x02A2 /* WM_NCMOUSELEAVE */, IntPtr.Zero, IntPtr.Zero);
+            Program.Check(!button.IsPointerOver, $"Native leave did not clear {target.Name}.");
+            CaptionChecks.AssertBackground(button, false);
+        }
+        Console.WriteLine("PASS: native caption hover/leave updates immediately; only native caption tooltips remain.");
+    }
+
     private static async Task CheckCaptionTargets(ShellWindow window)
     {
         await ChromeTarget(window, "TitleDragArea", 2);
@@ -381,9 +633,9 @@ internal static class NativeSmoke
         await ChromeTarget(window, "CloseButton", 20);
     }
 
-    private static async Task<PixelPoint> ChromeTarget(ShellWindow window, string name, int role)
+    private static async Task<PixelPoint> ChromeTarget(Window window, string name, int role)
     {
-        var control = window.FindControl<Control>(name)!;
+        var control = window.FindControl<Control>(name) ?? window.FindChrome<Control>(name)!;
         PixelPoint point = default;
         // Avalonia's chrome hit test uses GetVisualAt: wait for the committed input scene,
         // including the updated positions after maximize/restore, rather than a fixed sleep.
@@ -395,7 +647,7 @@ internal static class NativeSmoke
         return point;
     }
 
-    private static async Task NativeClick(ShellWindow window, string name, int role)
+    private static async Task NativeClick(Window window, string name, int role)
     {
         var point = await ChromeTarget(window, name, role);
         IntPtr handle = window.TryGetPlatformHandle()!.Handle;
@@ -466,6 +718,9 @@ internal static class NativeSmoke
     internal static extern bool IsWindow(IntPtr handle);
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindowVisible(IntPtr handle);
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool IsZoomed(IntPtr handle);
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -480,6 +735,13 @@ internal static class NativeSmoke
     private static extern IntPtr SendMessage(IntPtr handle, uint message, IntPtr wParam, IntPtr lParam);
     [DllImport("user32.dll")]
     private static extern IntPtr GetWindow(IntPtr handle, uint command);
+    [DllImport("user32.dll")]
+    private static extern IntPtr SetFocus(IntPtr handle);
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetFocus();
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsChild(IntPtr parent, IntPtr child);
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetWindowPos(IntPtr handle, IntPtr insertAfter, int x, int y, int width, int height, uint flags);

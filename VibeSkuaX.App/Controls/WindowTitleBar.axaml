@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="using:VibeSkuaX.App.Controls"
+             xmlns:chrome="using:Avalonia.Controls.Chrome"
+             x:Class="VibeSkuaX.App.Controls.WindowTitleBar"
+             x:Name="Root" x:DataType="local:WindowTitleBar">
+  <Border Name="TitleBar" Classes="vsx-titlebar">
+    <Grid ColumnDefinitions="*,Auto">
+      <Grid>
+        <Border Name="TitleDragArea" Background="Transparent" chrome:WindowDecorationProperties.ElementRole="TitleBar">
+          <Grid ColumnDefinitions="Auto,*" Margin="{StaticResource VsPaddingTitle}">
+            <Border Classes="vsx-brand" VerticalAlignment="Center">
+              <TextBlock Text="X" Classes="vsx-brand" />
+            </Border>
+            <TextBlock Name="TitleText" Grid.Column="1" Classes="vsx-title" TextTrimming="CharacterEllipsis"
+                       Margin="{StaticResource VsMarginAfterIcon}" VerticalAlignment="Center" />
+          </Grid>
+        </Border>
+        <ContentPresenter Name="HeaderPresenter" Content="{Binding HeaderContent, ElementName=Root}" />
+      </Grid>
+      <StackPanel Grid.Column="1" Orientation="Horizontal">
+        <Button Name="MinimizeButton" Classes="caption" Content="&#xE921;" Click="MinimizeClicked"
+                chrome:WindowDecorationProperties.ElementRole="MinimizeButton" AutomationProperties.Name="Minimize" />
+        <Button Name="MaximizeButton" Classes="caption" Content="&#xE922;" Click="MaximizeClicked"
+                chrome:WindowDecorationProperties.ElementRole="MaximizeButton" AutomationProperties.Name="Maximize" />
+        <Button Name="CloseButton" Classes="caption close" Content="&#xE8BB;" Click="CloseClicked"
+                chrome:WindowDecorationProperties.ElementRole="CloseButton" AutomationProperties.Name="Close" />
+      </StackPanel>
+    </Grid>
+  </Border>
+</UserControl>

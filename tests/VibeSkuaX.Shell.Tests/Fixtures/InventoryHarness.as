@@ -4,6 +4,7 @@ import flash.external.ExternalInterface;
 import flash.system.ApplicationDomain;
 import skua.Main;
 import skua.api.Inventory;
+import skua.api.Player;
 
 public class InventoryHarness extends MovieClip {
     // Link the supplied game's category implementation, not a reimplementation.
@@ -15,6 +16,9 @@ public class InventoryHarness extends MovieClip {
         ExternalInterface.addCallback("nativeTrue", function():Boolean { return true; });
         ExternalInterface.addCallback("nativeNumber", function():Number { return 1.5; });
         ExternalInterface.addCallback("nativeNull", function():* { return null; });
+        ExternalInterface.addCallback("isLoggedIn", Player.isLoggedIn);
+        ExternalInterface.addCallback("getGameObject", Main.getGameObject);
+        ExternalInterface.addCallback("setGameObject", Main.setGameObject);
         ExternalInterface.call("loaded", []);
     }
     private function run():String {

@@ -24,6 +24,14 @@ Prefer automated headless tests for shell behavior and targeted native checks fo
 
 ## UI development and reference sources
 
+Keep interactive controls the same size across hover, pressed, selected, loading, and other state changes. Changing a label or icon must not change the control's width or height or shift neighboring controls. Reserve room for the largest state content; responsive resizing is separate from interaction feedback.
+
+Prefer existing FluentAvalonia controls and themes over custom implementations. Style or compose those controls to match the agreed design, using standard Avalonia controls where needed. Introduce a custom control only for a concrete requirement that the available controls cannot satisfy; check the pinned source and samples first.
+
+Use a shared visual system for colors, spacing, typography, icon sizes, corner radii, and control states. Define reusable values in shared theme/style resources and apply them consistently across the app. Keep variations intentional and tied to a control's role.
+
+Read [docs/VISUAL-SYSTEM.md](docs/VISUAL-SYSTEM.md) before UI implementation. Use `VibeSkuaX.App/Styles/DesignTokens.axaml` and `ShellStyles.axaml` as the shared resource/style definitions; update the guide and resources together when intentionally changing the visual baseline. Do not infer new values from surrounding elements or conversation mockups.
+
 For UI work, consult `references/Avalonia-Source/`, `references/Avalonia-Docs/`, `references/Avalonia-Samples/`, and `references/FluentAvalonia/` before guessing at framework behavior or introducing a platform workaround. For game-related work requiring source-level information, consult `references/decompiled game/` and trace the relevant client code. Treat decompiled output as a game-version snapshot; distinguish client behavior from assumptions about server behavior.
 
 Use [docs/REFERENCES.md](docs/REFERENCES.md) to locate relevant files. Reference snapshots are Git-ignored research material; keep them separate from application code and build dependencies. Search them explicitly with `rg --no-ignore`, scoped to the relevant folder.

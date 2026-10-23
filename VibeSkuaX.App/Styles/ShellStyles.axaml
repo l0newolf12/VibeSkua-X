@@ -1,0 +1,149 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="using:FluentAvalonia.UI.Controls">
+  <Style Selector=":is(Control)">
+    <Setter Property="ToolTip.Placement" Value="Bottom" />
+    <Setter Property="ToolTip.VerticalOffset" Value="{StaticResource VsSpace2}" />
+    <Setter Property="ToolTip.ShouldUseOverlayLayer" Value="False" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts">
+    <Style.Resources>
+      <StaticResource x:Key="TabViewItemMaxWidth" ResourceKey="VsWidthAccountTab" />
+      <StaticResource x:Key="TabViewItemMinWidth" ResourceKey="VsWidthAccountTab" />
+      <StaticResource x:Key="TabViewItemMinHeight" ResourceKey="VsHeightTitleBar" />
+      <StaticResource x:Key="TabViewItemHeaderPadding" ResourceKey="VsPaddingAccountTab" />
+      <StaticResource x:Key="TabViewSelectedItemHeaderPadding" ResourceKey="VsPaddingAccountTab" />
+      <Thickness x:Key="TabViewSelectedItemHeaderMargin">0</Thickness>
+      <StaticResource x:Key="TabViewSelectedItemBorderThickness" ResourceKey="VsBorderTabIndicator" />
+      <StaticResource x:Key="TabViewItemAddButtonContainerPadding" ResourceKey="VsPaddingTabAdd" />
+      <StaticResource x:Key="TabViewItemHeaderForeground" ResourceKey="VsBrushTextPrimary" />
+      <StaticResource x:Key="TabViewItemHeaderForegroundSelected" ResourceKey="VsBrushTextPrimary" />
+      <StaticResource x:Key="TabViewItemHeaderBackgroundSelected" ResourceKey="VsBrushSelected" />
+      <StaticResource x:Key="TabViewItemHeaderBackgroundPointerOver" ResourceKey="VsBrushHover" />
+      <StaticResource x:Key="TabViewItemHeaderBackgroundPressed" ResourceKey="VsBrushPressed" />
+      <StaticResource x:Key="TabViewItemSeparator" ResourceKey="VsBrushTabDivider" />
+      <SolidColorBrush x:Key="TabViewBorderBrush" Color="Transparent" />
+      <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent" />
+      <StaticResource x:Key="TabViewSelectedItemBorderBrush" ResourceKey="VsBrushAccent" />
+    </Style.Resources>
+    <Setter Property="Height" Value="{StaticResource VsHeightTitleBar}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource VsBrushTitleBar}" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts /template/ Border#AddButtonHost">
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem /template/ Border#TabContainerBorder">
+    <Setter Property="BorderThickness" Value="{StaticResource VsBorderTabIndicator}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Margin" Value="0" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem:selected /template/ Border#TabContainerBorder">
+    <Setter Property="BorderBrush" Value="{DynamicResource VsBrushAccent}" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem /template/ ContentPresenter#ContentPresenter">
+    <Setter Property="FontWeight" Value="Normal" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem /template/ Border#TabSeparator">
+    <Setter Property="Height" Value="{StaticResource VsHeightTabDivider}" />
+    <Setter Property="Margin" Value="{StaticResource VsBorderTabIndicator}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <!-- The pinned library sets separator opacity locally; visibility preserves its
+       adjacent-tab logic while also suppressing the hovered/selected tab itself. -->
+  <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem:pointerover /template/ Border#TabSeparator, ui|FATabView.vsx-accounts ui|FATabViewItem:selected /template/ Border#TabSeparator">
+    <Setter Property="IsVisible" Value="False" />
+  </Style>
+  <Style Selector="Ellipse.vsx-game-state">
+    <Setter Property="Fill" Value="{DynamicResource VsBrushAccent}" />
+  </Style>
+  <Style Selector="Ellipse.vsx-game-state.loading">
+    <Setter Property="Fill" Value="{DynamicResource VsBrushTextSecondary}" />
+  </Style>
+  <Style Selector="Ellipse.vsx-game-state.failed">
+    <Setter Property="Fill" Value="{DynamicResource VsBrushDanger}" />
+  </Style>
+  <Style Selector="Button.vsx-dialog-action">
+    <Setter Property="Width" Value="{StaticResource VsWidthDialogAction}" />
+    <Setter Property="Height" Value="{StaticResource VsHeightControl}" />
+  </Style>
+  <!-- Keep FluentAvalonia's control templates, focus adorners and native caption roles. -->
+  <Style Selector="Window.vsx-shell">
+    <Setter Property="WindowDecorations" Value="BorderOnly" />
+    <Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
+    <Setter Property="Background" Value="{DynamicResource VsBrushCanvas}" />
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextPrimary}" />
+    <Setter Property="FontFamily" Value="{StaticResource VsFontUi}" />
+    <Setter Property="FontSize" Value="{StaticResource VsTextBody}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Border.vsx-titlebar">
+    <Setter Property="Height" Value="{StaticResource VsHeightTitleBar}" />
+    <Setter Property="Background" Value="{DynamicResource VsBrushTitleBar}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource VsBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{StaticResource VsBorderBottom}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Border.vsx-brand">
+    <Setter Property="Width" Value="{StaticResource VsSizeBrand}" />
+    <Setter Property="Height" Value="{StaticResource VsSizeBrand}" />
+    <Setter Property="CornerRadius" Value="{StaticResource VsRadiusBrand}" />
+    <Setter Property="Background" Value="{DynamicResource VsBrushAccent}" />
+  </Style>
+  <Style Selector="Window.vsx-shell TextBlock.vsx-brand">
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushOnAccent}" />
+    <Setter Property="FontSize" Value="{StaticResource VsTextBrand}" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Window.vsx-shell TextBlock.vsx-title">
+    <Setter Property="FontSize" Value="{StaticResource VsTextBody}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Window.vsx-shell TextBlock.vsx-status">
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextSecondary}" />
+    <Setter Property="FontSize" Value="{StaticResource VsTextSmall}" />
+  </Style>
+  <Style Selector="Window.vsx-shell TextBlock.vsx-heading">
+    <Setter Property="FontSize" Value="{StaticResource VsTextHeading}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+  <Style Selector="Window.vsx-shell TextBlock.vsx-body">
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextSecondary}" />
+    <Setter Property="FontSize" Value="{StaticResource VsTextReading}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Button.caption">
+    <Setter Property="Focusable" Value="False" />
+    <Setter Property="Width" Value="{StaticResource VsWidthCaption}" />
+    <Setter Property="Height" Value="{StaticResource VsHeightTitleBar}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextPrimary}" />
+    <Setter Property="FontFamily" Value="{StaticResource VsFontCaptionIcons}" />
+    <Setter Property="FontSize" Value="{StaticResource VsIconCaption}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Button.caption /template/ ContentPresenter#PART_ContentPresenter">
+    <!-- The inherited brush fade interpolates through transparent white, flashing gray/pink. -->
+    <Setter Property="Transitions" Value="{x:Null}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Button.caption:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource VsBrushHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextPrimary}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Button.caption:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource VsBrushPressed}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Button.caption.close:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource VsBrushCloseHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushOnClose}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Button.caption.close:pressed /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource VsBrushClosePressed}" />
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushOnClose}" />
+  </Style>
+  <Style Selector="Window.vsx-shell Button.caption:disabled /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextDisabled}" />
+  </Style>
+</Styles>

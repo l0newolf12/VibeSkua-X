@@ -1,24 +1,89 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
+using VibeSkuaX.App.Sessions;
 
 namespace VibeSkuaX.App.Features.Shell;
 
-public partial class ShellViewModel : ObservableObject
+public partial class ShellViewModel : ObservableObject, IDisposable
 {
-    public string Title => "VibeSkua X";
+    private readonly ObservableCollection<GameTabViewModel> _tabs = [];
+    private readonly Func<GameSession> _createSession;
+    private int _nextGame;
+    private bool _disposed;
 
-    [ObservableProperty]
-    private string _status = "Starting game…";
+    public ShellViewModel() : this(() => new GameSession()) { }
 
-    [ObservableProperty]
-    private string? _errorMessage;
-
-    [ObservableProperty]
-    private bool _hasError;
-
-    public void SetStatus(string status, string? error)
+    internal ShellViewModel(Func<GameSession> createSession)
     {
-        Status = status;
-        ErrorMessage = error;
-        HasError = error is not null;
+        _createSession = createSession;
+        Tabs = new(_tabs);
+        OpenGame();
+    }
+
+    public string Title => "VibeSkua X";
+    public ReadOnlyObservableCollection<GameTabViewModel> Tabs { get; }
+    public bool HasNoTabs => _tabs.Count == 0;
+    public string Status => SelectedTab?.Status ?? "No games open";
+    public string? ErrorMessage => SelectedTab?.ErrorMessage;
+    public bool HasError => SelectedTab?.HasError == true;
+
+    [ObservableProperty]
+    private GameTabViewModel? _selectedTab;
+
+    partial void OnSelectedTabChanging(GameTabViewModel? value)
+    {
+        if (SelectedTab is not null) SelectedTab.PropertyChanged -= SelectedStateChanged;
+    }
+
+    partial void OnSelectedTabChanged(GameTabViewModel? value)
+    {
+        if (value is not null) value.PropertyChanged += SelectedStateChanged;
+        NotifySelectedState();
+    }
+
+    private void SelectedStateChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(GameTabViewModel.Status)) NotifySelectedState();
+    }
+
+    private void NotifySelectedState()
+    {
+        OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(ErrorMessage));
+        OnPropertyChanged(nameof(HasError));
+    }
+
+    [RelayCommand]
+    private void OpenGame()
+    {
+        if (_disposed) return;
+        var tab = new GameTabViewModel($"Game {++_nextGame}", _createSession);
+        _tabs.Add(tab);
+        SelectedTab = tab;
+        OnPropertyChanged(nameof(HasNoTabs));
+    }
+
+    // Called only after the view has obtained confirmation for this exact tab.
+    internal void CloseTab(GameTabViewModel tab)
+    {
+        int index = _tabs.IndexOf(tab);
+        if (index < 0 || _disposed) return;
+        if (SelectedTab == tab)
+            SelectedTab = _tabs.Count == 1 ? null : _tabs[index + 1 < _tabs.Count ? index + 1 : index - 1];
+        _tabs.RemoveAt(index);
+        tab.Dispose();
+        OnPropertyChanged(nameof(HasNoTabs));
+    }
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        SelectedTab = null;
+        foreach (var tab in _tabs) tab.Dispose();
+        _tabs.Clear();
+        OnPropertyChanged(nameof(HasNoTabs));
     }
 }

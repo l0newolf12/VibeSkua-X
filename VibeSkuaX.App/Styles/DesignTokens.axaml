@@ -1,0 +1,68 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!-- Dark baseline. See docs/VISUAL-SYSTEM.md before adding or changing tokens. -->
+  <Color x:Key="VsColorAccent">#72D4F0</Color>
+  <SolidColorBrush x:Key="VsBrushCanvas" Color="#121214" />
+  <SolidColorBrush x:Key="VsBrushTitleBar" Color="#1A1A1D" />
+  <SolidColorBrush x:Key="VsBrushToolbar" Color="#232326" />
+  <SolidColorBrush x:Key="VsBrushSurface" Color="#26262B" />
+  <SolidColorBrush x:Key="VsBrushSelected" Color="#2A2A2F" />
+  <SolidColorBrush x:Key="VsBrushHover" Color="#34343A" />
+  <SolidColorBrush x:Key="VsBrushPressed" Color="#3B3B42" />
+  <SolidColorBrush x:Key="VsBrushBorder" Color="#35353C" />
+  <SolidColorBrush x:Key="VsBrushTabDivider" Color="#515159" />
+  <SolidColorBrush x:Key="VsBrushTextPrimary" Color="#E6E6EB" />
+  <SolidColorBrush x:Key="VsBrushTextSecondary" Color="#A3A3AE" />
+  <SolidColorBrush x:Key="VsBrushTextDisabled" Color="#71717C" />
+  <SolidColorBrush x:Key="VsBrushAccent" Color="{DynamicResource VsColorAccent}" />
+  <SolidColorBrush x:Key="VsBrushOnAccent" Color="#10202A" />
+  <SolidColorBrush x:Key="VsBrushSuccess" Color="#A3DBAD" />
+  <SolidColorBrush x:Key="VsBrushWarning" Color="#E8C675" />
+  <SolidColorBrush x:Key="VsBrushDanger" Color="#EE9496" />
+  <SolidColorBrush x:Key="VsBrushCloseHover" Color="#C42B1C" />
+  <SolidColorBrush x:Key="VsBrushClosePressed" Color="#A52519" />
+  <SolidColorBrush x:Key="VsBrushOnClose" Color="#FFFFFF" />
+
+  <FontFamily x:Key="VsFontUi">Segoe UI</FontFamily>
+  <FontFamily x:Key="VsFontCaptionIcons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+  <x:Double x:Key="VsTextSmall">11</x:Double>
+  <x:Double x:Key="VsTextBody">12</x:Double>
+  <x:Double x:Key="VsTextReading">14</x:Double>
+  <x:Double x:Key="VsTextHeading">22</x:Double>
+  <x:Double x:Key="VsTextBrand">13</x:Double>
+  <x:Double x:Key="VsIconCompact">14</x:Double>
+  <x:Double x:Key="VsIconStandard">16</x:Double>
+  <x:Double x:Key="VsIconCaption">10</x:Double>
+
+  <x:Double x:Key="VsSpace1">4</x:Double>
+  <x:Double x:Key="VsSpace2">8</x:Double>
+  <x:Double x:Key="VsSpace3">12</x:Double>
+  <x:Double x:Key="VsSpace4">16</x:Double>
+  <x:Double x:Key="VsSpace6">24</x:Double>
+  <x:Double x:Key="VsSpace8">32</x:Double>
+  <CornerRadius x:Key="VsRadiusControl">4</CornerRadius>
+  <CornerRadius x:Key="VsRadiusBrand">6</CornerRadius>
+  <CornerRadius x:Key="VsRadiusSurface">8</CornerRadius>
+  <Thickness x:Key="VsBorderHairline">1</Thickness>
+  <Thickness x:Key="VsBorderBottom">0,0,0,1</Thickness>
+  <Thickness x:Key="VsPaddingTitle">12,0,16,0</Thickness>
+  <Thickness x:Key="VsMarginAfterIcon">8,0,0,0</Thickness>
+  <Thickness x:Key="VsMarginMessage">32</Thickness>
+
+  <x:Double x:Key="VsHeightTitleBar">40</x:Double>
+  <x:Double x:Key="VsHeightToolbar">44</x:Double>
+  <x:Double x:Key="VsHeightControl">32</x:Double>
+  <x:Double x:Key="VsWidthCaption">46</x:Double>
+  <x:Double x:Key="VsSizeBrand">22</x:Double>
+  <x:Double x:Key="VsWidthMessage">520</x:Double>
+  <x:Double x:Key="VsSizeStatusDot">6</x:Double>
+  <x:Double x:Key="VsWidthAuto">90</x:Double>
+  <x:Double x:Key="VsWidthAccountTab">132</x:Double>
+  <x:Double x:Key="VsHeightTabDivider">14</x:Double>
+  <x:Double x:Key="VsWidthTitleDrag">160</x:Double>
+  <x:Double x:Key="VsWidthConfirmation">420</x:Double>
+  <x:Double x:Key="VsWidthDialogAction">112</x:Double>
+  <Thickness x:Key="VsPaddingAccountTab">8,3,4,3</Thickness>
+  <Thickness x:Key="VsBorderTabIndicator">0,0,0,2</Thickness>
+  <Thickness x:Key="VsPaddingTabAdd">3,0,0,2</Thickness>
+</ResourceDictionary>

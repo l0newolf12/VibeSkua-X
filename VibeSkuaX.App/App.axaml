@@ -3,7 +3,17 @@
              xmlns:fa="using:FluentAvalonia.Styling"
              x:Class="VibeSkuaX.App.App"
              RequestedThemeVariant="Dark">
+  <Application.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="/Styles/DesignTokens.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Application.Resources>
   <Application.Styles>
-    <fa:FluentAvaloniaTheme />
+    <fa:FluentAvaloniaTheme PreferSystemTheme="False"
+                            PreferUserAccentColor="False"
+                            CustomAccentColor="{StaticResource VsColorAccent}" />
+    <StyleInclude Source="/Styles/ShellStyles.axaml" />
   </Application.Styles>
 </Application>

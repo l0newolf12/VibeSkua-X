@@ -13,7 +13,7 @@ public sealed class FlashViewport : NativeControlHost, IDisposable
 
     public FlashViewport() : this(new GameSession()) { }
     internal FlashViewport(GameSessionOptions options) : this(new GameSession(options)) { }
-    private FlashViewport(GameSession session)
+    internal FlashViewport(GameSession session)
     {
         _session = session;
         _session.StateChanged += OnStateChanged;
@@ -23,6 +23,11 @@ public sealed class FlashViewport : NativeControlHost, IDisposable
     internal bool IsDisposed => _disposed;
     internal IntPtr ContainerHandle => _session.ContainerHandle;
     public event Action<string, string?>? StatusChanged;
+
+    internal void FocusGame()
+    {
+        if (!_disposed) _session.FocusGame();
+    }
 
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
     {

@@ -77,6 +77,16 @@ internal static class NativeSessionChecks
             foreach (var check in result.RootElement.EnumerateArray())
                 Program.Check(check.GetProperty("pass").GetBoolean(), "AS3 inventory contract failed: " + check.GetProperty("name").GetString());
             File.WriteAllText(Path.Combine(artifacts, "inventory-contract.json"), result.RootElement.GetRawText());
+            // The fixture owns plain client objects: exercise the production identity
+            // poller without connecting to a server or supplying account credentials.
+            runtime.Call("setGameObject", "sfc", new Dictionary<string, object?> { ["isConnected"] = true });
+            runtime.Call("setGameObject", "world.myAvatar.objData.strUsername", "Fixture character");
+            await NativeSmoke.Until(() => fixture.Viewport.Session.CharacterName == "Fixture character",
+                "Connected character data did not update the session identity.");
+            runtime.Call("setGameObject", "sfc.isConnected", false);
+            await NativeSmoke.Until(() => fixture.Viewport.Session.CharacterName is null,
+                "Logging out did not clear the session identity.");
+            passed.Add("character-identity-and-logout");
             IntPtr child = fixture.Viewport.ContainerHandle;
             fixture.Viewport.Session.Messenger.Send(new FlashRuntimeFailedMessage(new COMException("Injected native disconnect", unchecked((int)0x80010108))));
             await WaitState(fixture.Viewport, GameSessionState.Failed);
