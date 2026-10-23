@@ -14,6 +14,7 @@ namespace Skua.Core.Scripts;
 
 public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDisposable
 {
+    private readonly SessionServices _session = new();
     private CancellationTokenSource? ScriptInterfaceCTS;
     private readonly Thread ScriptInterfaceThread;
     private GameStateChannel? _stateChannel;
@@ -115,7 +116,7 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
         Hunt = hunt;
         GameProxy = gameProxy;
         Auto = auto;
-        Messenger = StrongReferenceMessenger.Default;
+        Messenger = _session.Strong;
         _dialogService = dialogService;
         Drops = drops;
         Events = events;
@@ -172,22 +173,25 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
             IsBackground = true
         };
 
-        IScriptInterface.Instance = this;
+        if (_session.Context is { } session) session.Bot = this;
+        else IScriptInterface.Instance = this;
     }
 
     public Task Schedule(int delay, Func<IScriptInterface, Task> function)
     {
+        using var sessionScope = _session.Enter();
         return Task.Run(async () => { await Task.Delay(delay); await function(this); });
     }
 
     public Task Schedule(int delay, Action<IScriptInterface> action)
     {
+        using var sessionScope = _session.Enter();
         return Task.Run(async () => { await Task.Delay(delay); action(this); });
     }
 
     public void SellJunk()
     {
-        IJunkService? junkService = Ioc.Default.GetService<IJunkService>();
+        IJunkService? junkService = _session.GetService<IJunkService>();
         junkService?.SellAllJunk();
     }
 
@@ -230,6 +234,7 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
 
     private void CheckScriptTermination()
     {
+        ScriptSessionContext.ThrowIfCancellationRequested();
         if (Thread.CurrentThread.Name == "Script Thread")
         {
             if (Manager is IScriptManager scriptManager)
@@ -807,7 +812,7 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
                 bool relogged = await Servers.EnsureRelogin(reloginCts.Token);
                 reloginCts.Token.ThrowIfCancellationRequested();
                 if (startScript && relogged)
-                    await Ioc.Default.GetService<IScriptManager>()!.StartScript();
+                    await _session.GetService<IScriptManager>()!.StartScript();
                 else if (startScript && !relogged)
                     Log("Skipping script restart because re-login did not succeed.");
                 Log($"Re-login was {(relogged ? "successful" : "cancelled or unsuccessful")}.");
@@ -882,7 +887,11 @@ public class ScriptInterface : IScriptInterface, IScriptInterfaceManager, IDispo
                 _reloginTask = null;
 
                 // Clear the static instance reference
-                if (IScriptInterface.Instance == this)
+                if (_session.Context is { } session)
+                {
+                    if (ReferenceEquals(session.Bot, this)) session.Bot = null;
+                }
+                else if (IScriptInterface.Instance == this)
                 {
                     IScriptInterface.Instance = null;
                 }

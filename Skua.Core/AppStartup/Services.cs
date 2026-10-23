@@ -13,12 +13,24 @@ namespace Skua.Core.AppStartup;
 
 public static class Services
 {
-    public static IServiceCollection AddCommonServices(this IServiceCollection services)
+    public static IServiceCollection AddCommonServices(this IServiceCollection services) => services.AddCommonServices(isolated: false);
+
+    public static IServiceCollection AddCommonServices(this IServiceCollection services, bool isolated)
     {
         services.AddTransient(typeof(Lazy<>), typeof(LazyInstance<>));
 
-        services.AddSingleton(typeof(IMessenger), WeakReferenceMessenger.Default);
-        services.AddSingleton(typeof(StrongReferenceMessenger), StrongReferenceMessenger.Default);
+        if (isolated)
+        {
+            services.AddSingleton<ScriptSessionContext>();
+            services.AddSingleton<IMessenger>(s => s.GetRequiredService<ScriptSessionContext>().WeakMessenger);
+            services.AddSingleton<StrongReferenceMessenger>(s => s.GetRequiredService<ScriptSessionContext>().Messenger);
+        }
+        else
+        {
+            // Retain the original single-engine composition API for existing hosts.
+            services.AddSingleton(typeof(IMessenger), WeakReferenceMessenger.Default);
+            services.AddSingleton(typeof(StrongReferenceMessenger), StrongReferenceMessenger.Default);
+        }
 
         services.AddSingleton<IDecamelizer, Decamelizer>();
         services.AddSingleton<IGetScriptsService, GetScriptsService>();

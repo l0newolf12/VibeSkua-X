@@ -14,6 +14,7 @@ namespace Skua.Core.Scripts;
 
 public partial class ScriptQuest : ObservableRecipient, IScriptQuest
 {
+    private readonly SessionServices _session = new();
     public ScriptQuest(
         Lazy<IFlashUtil> flash,
         Lazy<IScriptWait> wait,
@@ -25,7 +26,7 @@ public partial class ScriptQuest : ObservableRecipient, IScriptQuest
         Lazy<IScriptInventoryHelper> invHelper,
         Lazy<IScriptLite> lite,
         Lazy<IScriptMap> map,
-        Lazy<IScriptDrop> drop)
+        Lazy<IScriptDrop> drop) : base(SessionServices.CurrentWeak)
     {
         _lazyFlash = flash;
         _lazyWait = wait;
@@ -38,8 +39,8 @@ public partial class ScriptQuest : ObservableRecipient, IScriptQuest
         _lazyMap = map;
         _lazyDrop = drop;
 
-        StrongReferenceMessenger.Default.Register<ScriptQuest, ScriptStoppedMessage, int>(this, (int)MessageChannels.ScriptStatus, OnScriptStopped);
-        StrongReferenceMessenger.Default.Register<ScriptQuest, LogoutMessage, int>(this, (int)MessageChannels.GameEvents, OnLogout);
+        _session.Strong.Register<ScriptQuest, ScriptStoppedMessage, int>(this, (int)MessageChannels.ScriptStatus, OnScriptStopped);
+        _session.Strong.Register<ScriptQuest, LogoutMessage, int>(this, (int)MessageChannels.GameEvents, OnLogout);
     }
 
     private readonly Lazy<IFlashUtil> _lazyFlash;
@@ -342,7 +343,7 @@ public partial class ScriptQuest : ObservableRecipient, IScriptQuest
         }
 
         OnPropertyChanged(nameof(Registered));
-        WeakReferenceMessenger.Default.Send(new PropertyChangedMessage<IEnumerable<int>>(this, nameof(Registered), Registered, Registered));
+        _session.Weak.Send(new PropertyChangedMessage<IEnumerable<int>>(this, nameof(Registered), Registered, Registered));
 
         // Enable pick drops when quests are registered
         if (!Drop.Enabled)
@@ -427,7 +428,7 @@ public partial class ScriptQuest : ObservableRecipient, IScriptQuest
             _questAcceptCooldowns.Remove(id);
         }
         OnPropertyChanged(nameof(Registered));
-        WeakReferenceMessenger.Default.Send(new PropertyChangedMessage<IEnumerable<int>>(this, nameof(Registered), Registered, Registered));
+        _session.Weak.Send(new PropertyChangedMessage<IEnumerable<int>>(this, nameof(Registered), Registered, Registered));
     }
 
     public void UnregisterAllQuests()
@@ -437,7 +438,7 @@ public partial class ScriptQuest : ObservableRecipient, IScriptQuest
         _questCompleteCooldowns.Clear();
         _questAcceptCooldowns.Clear();
         OnPropertyChanged(nameof(Registered));
-        WeakReferenceMessenger.Default.Send(new PropertyChangedMessage<IEnumerable<int>>(this, nameof(Registered), Registered, Registered));
+        _session.Weak.Send(new PropertyChangedMessage<IEnumerable<int>>(this, nameof(Registered), Registered, Registered));
 
         // Cancel load quests task
         _loadQuestsCTS?.Cancel();

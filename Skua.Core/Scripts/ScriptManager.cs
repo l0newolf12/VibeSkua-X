@@ -19,9 +19,9 @@ namespace Skua.Core.Scripts;
 
 public partial class ScriptManager : ObservableObject, IScriptManager, IDisposable
 {
+    private readonly SessionServices _session = new();
     private static readonly Regex _versionRegex = new(@"^/\*[\s\S]*?version:\s*(\d+\.\d+\.\d+\.\d+)[\s\S]*?\*/", RegexOptions.Multiline | RegexOptions.Compiled);
     private static readonly Regex _accessibilityRegex = new(@"\b(public\s+|internal\s+|private\s+)?class\s+\w+", RegexOptions.Multiline | RegexOptions.Compiled);
-    private static readonly string _cacheScriptsDir = Path.Combine(ClientFileSources.SkuaScriptsDIR, "Cached-Scripts");
     public ScriptManager(
         ILogService logger,
         Lazy<IScriptInterface> scriptInterface,
@@ -73,6 +73,8 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
     private readonly List<string> _includedFiles = new();
     private ScriptLoadContext? _currentLoadContext;
     private string? _scriptRunId;
+    private TaskCompletionSource? _runCompletion;
+    private bool _disposed;
 
     [ObservableProperty]
     private bool _scriptRunning = false;
@@ -122,8 +124,12 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
 
     public async Task<Exception?> StartScript()
     {
+        using var sessionScope = _session.Enter();
+        CancellationTokenSource runSource;
+        TaskCompletionSource completion;
         lock (_threadLock)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             if (ScriptRunning)
             {
                 _logger.ScriptLog("Script already running.");
@@ -131,6 +137,13 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
             }
             ScriptRunning = true;
             _scriptRunId = Guid.NewGuid().ToString("N");
+            ScriptCts = runSource = new();
+            _runCompletion = completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            lock (_stateLock)
+            {
+                _stoppedByScript = false;
+                _runScriptStoppingBool = false;
+            }
         }
 
         string scriptCorrelationId;
@@ -144,11 +157,13 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
         try
         {
             await _lazyBot.Value.Auto.StopAsync();
+            runSource.Token.ThrowIfCancellationRequested();
 
             UnloadPreviousScript();
 
             string scriptContent = File.ReadAllText(LoadedScript);
             object? script = await Task.Run(() => Compile(scriptContent));
+            runSource.Token.ThrowIfCancellationRequested();
 
             LoadScriptConfig(script);
 
@@ -172,6 +187,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
             }
 
             Handlers.Clear();
+            runSource.Token.ThrowIfCancellationRequested();
 
             lock (_stateLock)
             {
@@ -181,7 +197,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
             Thread scriptThread = new(() =>
             {
                 Exception? exception = null;
-                ScriptCts = new();
+                using var executionScope = _session.Enter(runSource.Token);
 
 
                 try
@@ -203,7 +219,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
                         exception = e;
                         Trace.WriteLine($"Error while running script:\r\nMessage: {(e.InnerException is not null ? e.InnerException.Message : e.Message)}\r\nStackTrace: {(e.InnerException is not null ? e.InnerException.StackTrace : e.StackTrace)}");
 
-                        StrongReferenceMessenger.Default.Send<ScriptErrorMessage, int>(new(e), (int)MessageChannels.ScriptStatus);
+                        _session.Strong.Send<ScriptErrorMessage, int>(new(e), (int)MessageChannels.ScriptStatus);
 
                         lock (_stateLock)
                         {
@@ -222,10 +238,10 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
 
                     if (shouldSendStoppingMessage)
                     {
-                        StrongReferenceMessenger.Default.Send<ScriptStoppingMessage, int>((int)MessageChannels.ScriptStatus);
+                        Cleanup(() => _session.Strong.Send<ScriptStoppingMessage, int>((int)MessageChannels.ScriptStatus));
                         try
                         {
-                            Task<bool?> messageTask = Task.Run(async () => await StrongReferenceMessenger.Default.Send<ScriptStoppingRequestMessage, int>(new(exception), (int)MessageChannels.ScriptStatus));
+                            Task<bool?> messageTask = Task.Run(async () => await _session.Strong.Send<ScriptStoppingRequestMessage, int>(new(exception), (int)MessageChannels.ScriptStatus));
                             if (messageTask.Wait(TimeSpan.FromSeconds(2)))
                             {
                                 switch (messageTask.Result)
@@ -251,22 +267,22 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
                     }
 
                     script = null;
-                    Skills.Stop();
-                    Drops.Stop();
-
-                    AuraMonitor.StopMonitoring();
-                    UnloadPreviousScript();
-                    ScriptCts?.Dispose();
-                    ScriptCts = null;
-                    ScriptPaused = false;
-                    _diagnostics.RecordEvent("Script", "Stopped", correlationId: scriptCorrelationId);
-                    StrongReferenceMessenger.Default.Send<ScriptStoppedMessage, int>((int)MessageChannels.ScriptStatus);
-                    ScriptRunning = false;
+                    Cleanup(Skills.Stop);
+                    Cleanup(Drops.Stop);
+                    Cleanup(AuraMonitor.StopMonitoring);
+                    Cleanup(UnloadPreviousScript);
+                    Cleanup(() => ScriptPaused = false);
+                    Cleanup(() => _diagnostics.RecordEvent("Script", "Stopped", correlationId: scriptCorrelationId));
+                    Cleanup(() => _session.Strong.Send<ScriptStoppedMessage, int>((int)MessageChannels.ScriptStatus));
                     lock (_threadLock)
                     {
+                        runSource.Dispose();
+                        if (ReferenceEquals(ScriptCts, runSource)) ScriptCts = null;
                         if (string.Equals(_scriptRunId, scriptCorrelationId, StringComparison.Ordinal))
                             _scriptRunId = null;
+                        Cleanup(() => ScriptRunning = false);
                     }
+                    completion.TrySetResult();
                 }
             })
             {
@@ -280,19 +296,23 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
                 scriptThread.Start();
             }
 
-            StrongReferenceMessenger.Default.Send<ScriptStartedMessage, int>((int)MessageChannels.ScriptStatus);
+            _session.Strong.Send<ScriptStartedMessage, int>((int)MessageChannels.ScriptStatus);
             _diagnostics.RecordEvent("Script", "Started", correlationId: scriptCorrelationId);
 
             return null;
         }
         catch (Exception e)
         {
-            _diagnostics.RecordEvent("Script", "StartFailed", correlationId: scriptCorrelationId);
+            Cleanup(() => _diagnostics.RecordEvent("Script", "StartFailed", correlationId: scriptCorrelationId));
+            Cleanup(UnloadPreviousScript);
             lock (_threadLock)
             {
-                ScriptRunning = false;
+                runSource.Dispose();
+                if (ReferenceEquals(ScriptCts, runSource)) ScriptCts = null;
+                Cleanup(() => ScriptRunning = false);
                 _scriptRunId = null;
             }
+            completion.TrySetResult();
             return e;
         }
     }
@@ -308,8 +328,15 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
         });
     }
 
+    private static void Cleanup(Action action)
+    {
+        try { action(); }
+        catch (Exception error) { Trace.WriteLine($"Script cleanup failed: {error}"); }
+    }
+
     public async ValueTask StopScript(bool runScriptStoppingEvent = true)
     {
+        using var sessionScope = _session.Enter();
         ScriptPaused = false;
 
         string? scriptCorrelationId;
@@ -325,66 +352,33 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
             _stoppedByScript = true;
         }
 
-        ScriptCts?.Cancel();
-
-        if (Thread.CurrentThread.Name == "Script Thread")
+        Task finished;
+        Thread? thread;
+        lock (_threadLock)
+        {
+            ScriptCts?.Cancel();
+            thread = _currentScriptThread;
+            finished = _runCompletion?.Task ?? Task.CompletedTask;
+        }
+        if (ReferenceEquals(Thread.CurrentThread, thread))
         {
             ScriptCts?.Token.ThrowIfCancellationRequested();
             return;
         }
-
-        await Wait.ForTrueAsync(() => ScriptCts == null, 30).ConfigureAwait(false);
-
-        Thread? thread;
-        lock (_threadLock)
+        try { await finished.WaitAsync(TimeSpan.FromSeconds(30)).ConfigureAwait(false); }
+        catch (TimeoutException)
         {
-            thread = _currentScriptThread;
+            if (thread?.IsAlive == true) thread.Interrupt();
+            // Never silently dispose a service graph still used by an unresponsive script.
+            await finished.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
         }
-
-        if (thread?.IsAlive == true)
-        {
-            await Task.Run(() =>
-            {
-                if (!thread.Join(TimeSpan.FromSeconds(5)))
-                {
-                    try
-                    {
-                        thread.Interrupt();
-                        if (!thread.Join(TimeSpan.FromSeconds(3)))
-                        {
-                            // More aggressive termination attempts
-                            try
-                            {
-                                // Mark the thread as background so it doesn't prevent app shutdown
-                                if (!thread.IsBackground)
-                                    thread.IsBackground = true;
-
-                                // Give one final chance with a shorter timeout
-                                if (!thread.Join(TimeSpan.FromSeconds(1)))
-                                {
-                                    _logger?.ScriptLog("Script thread is unresponsive and may continue running until process exit.");
-                                }
-                            }
-                            catch (Exception termEx)
-                            {
-                                _logger?.ScriptLog($"Error during thread termination: {termEx.Message}");
-                            }
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger?.ScriptLog($"Error stopping script thread: {ex.Message}");
-                    }
-                }
-            }).ConfigureAwait(false);
-        }
-
         OnPropertyChanged(nameof(ScriptRunning));
     }
 
     [RequiresUnreferencedCode("This method may require code that cannot be statically analyzed for trimming. Use with caution.")]
     public object? Compile(string source)
     {
+        using var sessionScope = _session.Enter();
         string? scriptCorrelationId;
         lock (_threadLock)
         {
@@ -455,7 +449,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
         CompiledScript = final;
         string scriptName = Path.GetFileNameWithoutExtension(LoadedScript);
 
-        Compiler compiler = Ioc.Default.GetRequiredService<Compiler>();
+        Compiler compiler = _session.GetRequiredService<Compiler>();
         compiler.AllowReferencesInCode = true;
 
         if (references.Count > 0)
@@ -672,10 +666,11 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
 
     public void LoadScriptConfig(object? script)
     {
+        using var sessionScope = _session.Enter();
         if (script is null)
             return;
 
-        IScriptOptionContainer opts = Config = Ioc.Default.GetRequiredService<IScriptOptionContainer>();
+        IScriptOptionContainer opts = Config = _session.GetRequiredService<IScriptOptionContainer>();
         Type t = script.GetType();
         FieldInfo? storageField = t.GetField("OptionsStorage");
         FieldInfo? optsField = t.GetField("Options");
@@ -776,7 +771,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
         ConcurrentDictionary<string, List<string>> dependencyGraph = new();
         ConcurrentDictionary<string, (string source, string fileName, int hash, string cachePath)> fileInfoCache = new();
 
-        string cacheDir = _cacheScriptsDir;
+        string cacheDir = Compiler.CacheDirectory;
 
         ConcurrentBag<string> validCachedFiles = new();
 
@@ -1038,7 +1033,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
 
             string processedInclude = ProcessIncludeDirectives(includeSource, includedFile, ref includeReferences);
 
-            Compiler includeCompiler = Ioc.Default.GetRequiredService<Compiler>();
+            Compiler includeCompiler = _session.GetRequiredService<Compiler>();
             includeCompiler.AllowReferencesInCode = true;
 
             if (includeReferences.Count > 0)
@@ -1262,6 +1257,7 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
 
     private void UnloadPreviousScript()
     {
+        using var sessionScope = _session.Enter();
         ScriptLoadContext? context;
         lock (_stateLock)
         {
@@ -1299,21 +1295,17 @@ public partial class ScriptManager : ObservableObject, IScriptManager, IDisposab
 
     public void Dispose()
     {
-        Thread? thread;
+        if (_disposed) return;
+        StopScript(false).AsTask().GetAwaiter().GetResult();
+        using var sessionScope = _session.Enter();
         lock (_threadLock)
         {
-            thread = _currentScriptThread;
+            if (_disposed) return;
+            _disposed = true;
         }
-
-        if (thread?.IsAlive == true)
-        {
-            ScriptCts?.Cancel();
-            if (!thread.Join(TimeSpan.FromSeconds(5)))
-            {
-                _logger?.ScriptLog("Script thread did not exit during disposal.");
-            }
-        }
+        UnloadPreviousScript();
         ScriptCts?.Dispose();
+        ScriptPauseEvent.Dispose();
         _includedFilesLock?.Dispose();
     }
 }

@@ -8,8 +8,9 @@ using Skua.Core.Models.Items;
 
 namespace Skua.Core.Scripts;
 
-public class ScriptWait : IScriptWait
+public class ScriptWait : IScriptWait, IDisposable
 {
+    private readonly SessionServices _session = new();
     private readonly Lazy<IFlashUtil> _lazyFlash;
     private readonly Lazy<IScriptPlayer> _lazyPlayer;
     private readonly Lazy<IScriptManager> _lazyManager;
@@ -68,12 +69,12 @@ public class ScriptWait : IScriptWait
         _lazySkills = skills;
         _diagnostics = diagnostics;
 
-        StrongReferenceMessenger.Default.Register<ScriptWait, ItemBoughtMessage>(this, (r, m) => r._itemBuyEvent.Set());
-        StrongReferenceMessenger.Default.Register<ScriptWait, ItemBoughtMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r._itemBuyEvent.Set());
-        StrongReferenceMessenger.Default.Register<ScriptWait, ItemSoldMessage>(this, (r, m) => r._itemSellEvent.Set());
-        StrongReferenceMessenger.Default.Register<ScriptWait, ItemSoldMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r._itemSellEvent.Set());
-        StrongReferenceMessenger.Default.Register<ScriptWait, BankLoadedMessage>(this, (r, m) => r._bankLoadEvent.Set());
-        StrongReferenceMessenger.Default.Register<ScriptWait, BankLoadedMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r._bankLoadEvent.Set());
+        _session.Strong.Register<ScriptWait, ItemBoughtMessage>(this, (r, m) => r._itemBuyEvent.Set());
+        _session.Strong.Register<ScriptWait, ItemBoughtMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r._itemBuyEvent.Set());
+        _session.Strong.Register<ScriptWait, ItemSoldMessage>(this, (r, m) => r._itemSellEvent.Set());
+        _session.Strong.Register<ScriptWait, ItemSoldMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r._itemSellEvent.Set());
+        _session.Strong.Register<ScriptWait, BankLoadedMessage>(this, (r, m) => r._bankLoadEvent.Set());
+        _session.Strong.Register<ScriptWait, BankLoadedMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r._bankLoadEvent.Set());
     }
 
     public int WAIT_SLEEP { get; set; } = 100;
@@ -81,6 +82,17 @@ public class ScriptWait : IScriptWait
     private readonly AutoResetEvent _itemBuyEvent = new(false);
     private readonly AutoResetEvent _itemSellEvent = new(false);
     private readonly AutoResetEvent _bankLoadEvent = new(false);
+    private bool _disposed;
+
+    public void Dispose()
+    {
+        if (_disposed) return;
+        _disposed = true;
+        _session.Strong.UnregisterAll(this);
+        _itemBuyEvent.Dispose();
+        _itemSellEvent.Dispose();
+        _bankLoadEvent.Dispose();
+    }
 
     public bool OverrideTimeout { get; set; } = false;
     public int PlayerActionTimeout { get; set; } = 15;

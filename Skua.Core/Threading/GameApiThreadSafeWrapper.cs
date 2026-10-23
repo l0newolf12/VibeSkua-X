@@ -10,6 +10,7 @@ public class GameApiThreadSafeWrapper : IGameApiThreadSafeWrapper
     private readonly ConcurrentQueue<GameApiCall> _pendingCalls = new();
     private CancellationTokenSource? _processingCts;
     private Task? _processingTask;
+    private int _stopped;
 
     public GameApiThreadSafeWrapper(IScriptInterface scriptInterface, int maxConcurrentGameCalls = 1)
     {
@@ -28,12 +29,18 @@ public class GameApiThreadSafeWrapper : IGameApiThreadSafeWrapper
 
     public async Task StopAsync()
     {
+        if (Interlocked.Exchange(ref _stopped, 1) != 0) return;
         _processingCts?.Cancel();
-        if (_processingTask != null)
+        try
         {
-            await _processingTask;
+            if (_processingTask != null) await _processingTask;
         }
-        _apiAccessSemaphore.Dispose();
+        catch (OperationCanceledException) when (_processingCts?.IsCancellationRequested == true) { }
+        finally
+        {
+            _processingCts?.Dispose();
+            _apiAccessSemaphore.Dispose();
+        }
     }
 
     public async Task<T> ExecuteAsync<T>(Func<IScriptInterface, T> operation, string operationName = "")

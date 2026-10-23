@@ -13,6 +13,7 @@ namespace Skua.Core.Scripts;
 
 public partial class ScriptOption : ObservableRecipient, IScriptOption, IOptionDictionary
 {
+    private readonly SessionServices _session = new();
     private ScriptOption(Lazy<IFlashUtil> flash)
     {
         _lazyFlash = flash;
@@ -20,15 +21,15 @@ public partial class ScriptOption : ObservableRecipient, IScriptOption, IOptionD
 
     public ScriptOption(
         Lazy<IFlashUtil> flash,
-        ISettingsService settingsService)
+        ISettingsService settingsService) : base(SessionServices.CurrentWeak)
     {
         _lazyFlash = flash;
         _settingsService = settingsService;
         _isInitializing = true;
         GetOptions();
         OptionDictionary = GenerateDictionary().ToImmutableDictionary();
-        StrongReferenceMessenger.Default.Register<ScriptOption, ScriptStoppedMessage, int>(this, (int)MessageChannels.ScriptStatus, ScriptStopped);
-        StrongReferenceMessenger.Default.Register<ScriptOption, MapChangedMessage, int>(this, (int)MessageChannels.GameEvents, MapChanged);
+        _session.Strong.Register<ScriptOption, ScriptStoppedMessage, int>(this, (int)MessageChannels.ScriptStatus, ScriptStopped);
+        _session.Strong.Register<ScriptOption, MapChangedMessage, int>(this, (int)MessageChannels.GameEvents, MapChanged);
         _isInitializing = false;
     }
 

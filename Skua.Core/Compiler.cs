@@ -7,6 +7,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text;
 using Westwind.Scripting;
+using Skua.Core.Interfaces;
+using System.Runtime.CompilerServices;
 
 namespace Skua.Core;
 
@@ -16,7 +18,9 @@ namespace Skua.Core;
 public class Compiler : CSharpScriptExecution
 {
     private const int _maxCachedAssemblies = 1024;
-    private static readonly string _cacheDirectory = Path.Combine(ClientFileSources.SkuaScriptsDIR, "Cached-Scripts");
+    // Old compiled source embeds process-global service access. Never reuse it.
+    public static string CacheDirectory { get; } = Path.Combine(ClientFileSources.SkuaScriptsDIR, "Cached-Scripts", "session-globals-v1");
+    private static string _cacheDirectory => CacheDirectory;
     private static readonly TimeSpan _cacheExpiration = TimeSpan.FromDays(7);
     private static readonly TimeSpan _cleanupThrottle = TimeSpan.FromMinutes(5);
     private static DateTime _lastCleanupTime = DateTime.MinValue;
@@ -34,8 +38,19 @@ public class Compiler : CSharpScriptExecution
     private string? _cachedNamespacePrefix = null;
     private int _lastNamespaceHash = 0;
 
-    private static readonly ConcurrentDictionary<int, string> _compiledRegistry = new();
-    private static readonly ConcurrentDictionary<string, Assembly> _loadedAssemblies = new(StringComparer.OrdinalIgnoreCase);
+    private sealed class Registry
+    {
+        public ConcurrentDictionary<int, string> Compiled { get; } = new();
+        public ConcurrentDictionary<string, Assembly> Loaded { get; } = new(StringComparer.OrdinalIgnoreCase);
+        public ConcurrentDictionary<int, Assembly> Assemblies { get; } = new();
+    }
+    private static readonly ConditionalWeakTable<ScriptSessionContext, Registry> SessionRegistries = new();
+    private static readonly Registry LegacyRegistry = new();
+    private static Registry CurrentRegistry => ScriptSessionContext.Current is { } session
+        ? SessionRegistries.GetValue(session, _ => new Registry()) : LegacyRegistry;
+    private static ConcurrentDictionary<int, string> _compiledRegistry => CurrentRegistry.Compiled;
+    private static ConcurrentDictionary<string, Assembly> _loadedAssemblies => CurrentRegistry.Loaded;
+    private static ConcurrentDictionary<int, Assembly> SessionAssemblies => CurrentRegistry.Assemblies;
 
     public static bool FastVerifyAssembly(string path)
     {
@@ -112,7 +127,7 @@ public class Compiler : CSharpScriptExecution
     {
         int hash = cacheHash ?? code.GetHashCode();
 
-        if (loadContext != null || !CachedAssemblies.ContainsKey(hash))
+        if (loadContext != null || !SessionAssemblies.ContainsKey(hash))
         {
             string? cachedAssemblyPath = TryLoadFromDiskCache(hash, scriptName);
 
@@ -160,21 +175,21 @@ public class Compiler : CSharpScriptExecution
 
             if (loadContext == null)
             {
-                lock (CachedAssemblies)
+                lock (SessionAssemblies)
                 {
-                    if (CachedAssemblies.Count >= _maxCachedAssemblies)
+                    if (SessionAssemblies.Count >= _maxCachedAssemblies)
                     {
-                        int oldestKey = CachedAssemblies.Keys.Min();
-                        CachedAssemblies.TryRemove(oldestKey, out _);
+                        int oldestKey = SessionAssemblies.Keys.Min();
+                        SessionAssemblies.TryRemove(oldestKey, out _);
                     }
 
-                    CachedAssemblies[hash] = Assembly;
+                    SessionAssemblies[hash] = Assembly;
                 }
             }
         }
         else
         {
-            Assembly = CachedAssemblies[hash];
+            Assembly = SessionAssemblies[hash];
         }
 
         Type? firstType = Assembly.ExportedTypes.FirstOrDefault();
@@ -207,6 +222,7 @@ public class Compiler : CSharpScriptExecution
             .WithOptions(_compilationOptions)
             .WithReferences(References)
             .AddSyntaxTrees(tree);
+        compilation = ScriptGlobalRewriter.Apply(compilation);
 
         if (SaveGeneratedCode)
             GeneratedClassCode = sourceWithNamespaces;
@@ -311,7 +327,7 @@ public class Compiler : CSharpScriptExecution
     /// </summary>
     public static void ClearAssemblyCache()
     {
-        CachedAssemblies?.Clear();
+        SessionAssemblies.Clear();
     }
 
     private static string? TryLoadFromDiskCache(int hash, string? scriptName = null)
@@ -476,6 +492,7 @@ public class Compiler : CSharpScriptExecution
             .WithOptions(_compilationOptions)
             .WithReferences(References)
             .AddSyntaxTrees(tree);
+        compilation = ScriptGlobalRewriter.Apply(compilation);
 
         if (SaveGeneratedCode)
             GeneratedClassCode = source;

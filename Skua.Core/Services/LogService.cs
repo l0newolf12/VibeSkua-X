@@ -15,7 +15,7 @@ public class LogService : ObservableRecipient, ILogService, IDisposable
     private readonly object _scriptLock = new();
     private readonly object _flashLock = new();
 
-    public LogService()
+    public LogService() : base(SessionServices.CurrentWeak)
     {
         _debugListener = new DebugListener(this);
         Trace.Listeners.Add(_debugListener);

@@ -8,6 +8,7 @@ namespace Skua.Core.Scripts;
 
 public partial class ScriptCombat : IScriptCombat
 {
+    private readonly SessionServices _session = new();
     public ScriptCombat(
         Lazy<IFlashUtil> flash,
         Lazy<IScriptOption> options,
@@ -20,7 +21,7 @@ public partial class ScriptCombat : IScriptCombat
         _lazyWait = wait;
         _lazyPlayer = player;
         _lazyMap = map;
-        _messenger = StrongReferenceMessenger.Default;
+        _messenger = _session.Strong;
 
         _messenger.Register<ScriptCombat, CounterAttackMessage, int>(this, (int)MessageChannels.GameEvents, CounterAttack);
         _messenger.Register<ScriptCombat, PlayerDeathMessage, int>(this, (int)MessageChannels.GameEvents, PlayerDead);

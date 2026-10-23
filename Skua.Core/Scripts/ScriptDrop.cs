@@ -10,6 +10,7 @@ namespace Skua.Core.Scripts;
 
 public partial class ScriptDrop : ObservableRecipient, IScriptDrop, IAsyncDisposable
 {
+    private readonly SessionServices _session = new();
     public ScriptDrop(
         Lazy<IFlashUtil> flash,
         Lazy<IScriptSend> send,
@@ -17,7 +18,7 @@ public partial class ScriptDrop : ObservableRecipient, IScriptDrop, IAsyncDispos
         Lazy<IScriptWait> wait,
         Lazy<IScriptOption> options,
         Lazy<IScriptPlayer> player,
-        Lazy<IScriptInventory> inventory)
+        Lazy<IScriptInventory> inventory) : base(SessionServices.CurrentWeak)
     {
         _lazySend = send;
         _lazyWait = wait;
@@ -27,9 +28,9 @@ public partial class ScriptDrop : ObservableRecipient, IScriptDrop, IAsyncDispos
         _lazyFlash = flash;
         _lazyInventory = inventory;
 
-        StrongReferenceMessenger.Default.Register<ScriptDrop, ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents, AddDrop);
-        StrongReferenceMessenger.Default.Register<ScriptDrop, LogoutMessage, int>(this, (int)MessageChannels.GameEvents, ClearDrops);
-        StrongReferenceMessenger.Default.Register<ScriptDrop, ScriptStoppedMessage, int>(this, (int)MessageChannels.ScriptStatus, ScriptStopped);
+        _session.Strong.Register<ScriptDrop, ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents, AddDrop);
+        _session.Strong.Register<ScriptDrop, LogoutMessage, int>(this, (int)MessageChannels.GameEvents, ClearDrops);
+        _session.Strong.Register<ScriptDrop, ScriptStoppedMessage, int>(this, (int)MessageChannels.ScriptStatus, ScriptStopped);
         Messenger.Register<ScriptDrop, PropertyChangedMessage<bool>>(this, OptionsChanged);
 
         _timerDrops = new(TimeSpan.FromMilliseconds(1000));
@@ -373,7 +374,7 @@ public partial class ScriptDrop : ObservableRecipient, IScriptDrop, IAsyncDispos
 
         if (IsActive)
         {
-            StrongReferenceMessenger.Default.UnregisterAll(this);
+            _session.Strong.UnregisterAll(this);
             Messenger.UnregisterAll(this);
             IsActive = false;
         }
@@ -404,7 +405,7 @@ public partial class ScriptDrop : ObservableRecipient, IScriptDrop, IAsyncDispos
 
         if (IsActive)
         {
-            StrongReferenceMessenger.Default.UnregisterAll(this);
+            _session.Strong.UnregisterAll(this);
             Messenger.UnregisterAll(this);
             IsActive = false;
         }

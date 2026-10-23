@@ -9,6 +9,7 @@ namespace Skua.Core.Skills;
 
 public class AdvancedSkillContainer : ObservableRecipient, IAdvancedSkillContainer, IDisposable
 {
+    private readonly SessionServices _session = new();
     private List<AdvancedSkill> _loadedSkills = new();
     private readonly string _defaultSkillsSetsPath;
     private readonly string _userSkillsSetsPath;
@@ -23,7 +24,7 @@ public class AdvancedSkillContainer : ObservableRecipient, IAdvancedSkillContain
         set => SetProperty(ref _loadedSkills, value, true);
     }
 
-    public AdvancedSkillContainer()
+    public AdvancedSkillContainer() : base(SessionServices.CurrentWeak)
     {
         _defaultSkillsSetsPath = ClientFileSources.SkuaAdvancedSkillsFile;
         _userSkillsSetsPath = Path.Combine(ClientFileSources.SkuaDIR, "UserAdvancedSkills.json");
@@ -64,7 +65,7 @@ public class AdvancedSkillContainer : ObservableRecipient, IAdvancedSkillContain
 
     private void _CopyDefaultSkills()
     {
-        IGetScriptsService getScripts = Ioc.Default.GetRequiredService<IGetScriptsService>();
+        IGetScriptsService getScripts = _session.GetRequiredService<IGetScriptsService>();
         if (!File.Exists(_defaultSkillsSetsPath))
             getScripts.UpdateSkillSetsFile().GetAwaiter().GetResult();
 
@@ -97,7 +98,7 @@ public class AdvancedSkillContainer : ObservableRecipient, IAdvancedSkillContain
         LoadedSkills.Clear();
         _jsonConfig = null;
 
-        IScriptOption? options = Ioc.Default.GetService<IScriptOption>();
+        IScriptOption? options = _session.GetService<IScriptOption>();
         if (options != null && options.UseFunctionBasedSkills)
         {
             OnPropertyChanged(nameof(LoadedSkills));

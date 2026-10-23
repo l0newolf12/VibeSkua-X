@@ -11,6 +11,7 @@ namespace Skua.Core.Scripts;
 
 public partial class ScriptShop : IScriptShop
 {
+    private readonly SessionServices _session = new();
     public ScriptShop(
         Lazy<IFlashUtil> flash,
         Lazy<IScriptOption> options,
@@ -28,7 +29,7 @@ public partial class ScriptShop : IScriptShop
         _lazySend = send;
         _lazyInventory = inventory;
 
-        StrongReferenceMessenger.Default.Register<ScriptShop, ShopLoadedMessage, int>(this, (int)MessageChannels.GameEvents, ShopLoaded);
+        _session.Strong.Register<ScriptShop, ShopLoadedMessage, int>(this, (int)MessageChannels.GameEvents, ShopLoaded);
     }
 
     private void ShopLoaded(ScriptShop recipient, ShopLoadedMessage message)

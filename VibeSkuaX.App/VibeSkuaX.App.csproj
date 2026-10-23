@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <AssemblyName>VibeSkuaX</AssemblyName>
+    <RootNamespace>VibeSkuaX.App</RootNamespace>
+    <Platforms>AnyCPU;x64</Platforms>
+    <PlatformTarget>x64</PlatformTarget>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="VibeSkuaX.Shell.Tests" />
+    <PackageReference Include="Avalonia" />
+    <PackageReference Include="Avalonia.Desktop" />
+    <PackageReference Include="FluentAvaloniaUI" />
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <ProjectReference Include="..\VibeSkuaX.Runtime.Windows\VibeSkuaX.Runtime.Windows.csproj" />
+    <ProjectReference Include="..\Skua.Core\Skua.Core.csproj" />
+  </ItemGroup>
+</Project>

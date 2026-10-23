@@ -9,6 +9,7 @@
     <AssemblyName>VibeSkuaX.Runtime.Windows</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="VibeSkuaX.Shell.Tests" />
     <ProjectReference Include="..\Skua.Core\Skua.Core.csproj" />
     <PackageReference Include="CoreHook" />
     <Reference Include="AxInterop.ShockwaveFlashObjects">

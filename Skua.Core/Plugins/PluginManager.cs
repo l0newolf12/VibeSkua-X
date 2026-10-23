@@ -13,6 +13,7 @@ public delegate void PluginLoadDelegate(IPluginContainer container);
 
 public class PluginManager : IPluginManager
 {
+    private readonly SessionServices _session = new();
     private Dictionary<ISkuaPlugin, IPluginContainer> _plugins = new();
 
     public List<IPluginContainer> Containers => _plugins.Values.ToList();
@@ -68,10 +69,10 @@ public class PluginManager : IPluginManager
 
             try
             {
-                plugin.Load(Ioc.Default, Ioc.Default.GetRequiredService<IPluginHelper>());
+                plugin.Load(_session, _session.GetRequiredService<IPluginHelper>());
                 container.OptionContainer.SetDefaults();
                 container.OptionContainer.Load();
-                StrongReferenceMessenger.Default.Send<PluginLoadedMessage, int>(new(container), (int)MessageChannels.Plugins);
+                _session.Strong.Send<PluginLoadedMessage, int>(new(container), (int)MessageChannels.Plugins);
                 return null;
             }
             catch (Exception loadException)
@@ -110,7 +111,7 @@ public class PluginManager : IPluginManager
     /// <param name="plugin">The plugin to unload.</param>
     public void Unload(ISkuaPlugin plugin)
     {
-        StrongReferenceMessenger.Default.Send<PluginUnloadedMessage, int>(new(_plugins[plugin]), (int)MessageChannels.Plugins);
+        _session.Strong.Send<PluginUnloadedMessage, int>(new(_plugins[plugin]), (int)MessageChannels.Plugins);
         plugin.Unload();
         _plugins.Remove(plugin);
     }
@@ -125,7 +126,7 @@ public class PluginManager : IPluginManager
         if (plugin is null)
             return;
 
-        StrongReferenceMessenger.Default.Send<PluginUnloadedMessage, int>(new(_plugins[plugin]), (int)MessageChannels.Plugins);
+        _session.Strong.Send<PluginUnloadedMessage, int>(new(_plugins[plugin]), (int)MessageChannels.Plugins);
         plugin.Unload();
         _plugins.Remove(plugin);
     }

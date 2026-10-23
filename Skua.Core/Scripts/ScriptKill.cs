@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Messaging;
+using CommunityToolkit.Mvvm.Messaging;
 using Skua.Core.Interfaces;
 using Skua.Core.Messaging;
 using Skua.Core.Models.Monsters;
@@ -8,6 +8,7 @@ namespace Skua.Core.Scripts;
 
 public class ScriptKill : IScriptKill
 {
+    private readonly SessionServices _session = new();
     public ScriptKill(Lazy<IScriptWait> wait,
         Lazy<IScriptOption> options,
         Lazy<IScriptCombat> combat,
@@ -137,8 +138,8 @@ public class ScriptKill : IScriptKill
         _item = (item, quantity, tempItem);
         string[] names = name.Split('|');
 
-        StrongReferenceMessenger.Default.Register<ScriptKill, CellChangedMessage, int>(this, (int)MessageChannels.GameEvents, CellChanged);
-        StrongReferenceMessenger.Default.Register<ScriptKill, ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents, ItemDropped);
+        _session.Strong.Register<ScriptKill, CellChangedMessage, int>(this, (int)MessageChannels.GameEvents, CellChanged);
+        _session.Strong.Register<ScriptKill, ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents, ItemDropped);
         try
         {
             if (name == "*")
@@ -175,8 +176,8 @@ public class ScriptKill : IScriptKill
             _saveCell = _savePad = string.Empty;
             _ctsKill?.Dispose();
             _ctsKill = null;
-            StrongReferenceMessenger.Default.Unregister<CellChangedMessage, int>(this, (int)MessageChannels.GameEvents);
-            StrongReferenceMessenger.Default.Unregister<ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents);
+            _session.Strong.Unregister<CellChangedMessage, int>(this, (int)MessageChannels.GameEvents);
+            _session.Strong.Unregister<ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents);
         }
 
         void CellChanged(ScriptKill recipient, CellChangedMessage message)

@@ -9,6 +9,7 @@ namespace Skua.Core.Scripts;
 
 public partial class ScriptBank : IScriptBank
 {
+    private readonly SessionServices _session = new();
     public ScriptBank(
         Lazy<IFlashUtil> flash,
         Lazy<IScriptSend> send,
@@ -28,10 +29,10 @@ public partial class ScriptBank : IScriptBank
         _lazyManager = manager;
         _lazyPlayer = player;
 
-        StrongReferenceMessenger.Default.Register<ScriptBank, BankLoadedMessage>(this, (r, m) => r.Loaded = true);
-        StrongReferenceMessenger.Default.Register<ScriptBank, BankLoadedMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r.Loaded = true);
-        StrongReferenceMessenger.Default.Register<ScriptBank, LogoutMessage>(this, (r, m) => r.Loaded = false);
-        StrongReferenceMessenger.Default.Register<ScriptBank, LogoutMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r.Loaded = false);
+        _session.Strong.Register<ScriptBank, BankLoadedMessage>(this, (r, m) => r.Loaded = true);
+        _session.Strong.Register<ScriptBank, BankLoadedMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r.Loaded = true);
+        _session.Strong.Register<ScriptBank, LogoutMessage>(this, (r, m) => r.Loaded = false);
+        _session.Strong.Register<ScriptBank, LogoutMessage, int>(this, (int)MessageChannels.GameEvents, (r, m) => r.Loaded = false);
     }
 
     private readonly Lazy<IFlashUtil> _lazyFlash;

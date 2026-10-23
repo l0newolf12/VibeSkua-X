@@ -16,7 +16,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-      - name: Build foundation
+      - name: Build solution
         run: dotnet build VibeSkuaX.sln -c Release --nologo
       - name: Check foundation behavior
         run: dotnet run --project tests/VibeSkuaX.Foundation.Tests -c Release --no-build
+      - name: Check shell without a desktop
+        run: dotnet run --project tests/VibeSkuaX.Shell.Tests -c Release --no-build

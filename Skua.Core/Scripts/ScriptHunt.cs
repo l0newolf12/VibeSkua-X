@@ -1,4 +1,4 @@
-﻿using CommunityToolkit.Mvvm.Messaging;
+using CommunityToolkit.Mvvm.Messaging;
 using Skua.Core.Interfaces;
 using Skua.Core.Messaging;
 using Skua.Core.Models;
@@ -9,6 +9,7 @@ namespace Skua.Core.Scripts;
 
 public class ScriptHunt : IScriptHunt
 {
+    private readonly SessionServices _session = new();
     public ScriptHunt(
         Lazy<IScriptOption> options,
         Lazy<IScriptCombat> combat,
@@ -314,7 +315,7 @@ public class ScriptHunt : IScriptHunt
         }
         List<string> cells = new(cellsSet);
 
-        StrongReferenceMessenger.Default.Register<ScriptHunt, ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents, ItemDropped);
+        _session.Strong.Register<ScriptHunt, ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents, ItemDropped);
         try
         {
             while (!Manager.ShouldExit && !_ctsHunt.IsCancellationRequested)
@@ -361,7 +362,7 @@ public class ScriptHunt : IScriptHunt
         }
         finally
         {
-            StrongReferenceMessenger.Default.Unregister<ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents);
+            _session.Strong.Unregister<ItemDroppedMessage, int>(this, (int)MessageChannels.GameEvents);
             _ctsHunt?.Dispose();
             _ctsHunt = null;
         }

@@ -7,12 +7,13 @@ namespace Skua.Core.Scripts;
 
 public class ScriptEvent : IScriptEvent, IDisposable
 {
+    private readonly SessionServices _session = new();
     private GameStateChannel? _stateChannel;
 
     public ScriptEvent(IDiagnosticsService diagnostics)
     {
         _diagnostics = diagnostics;
-        _messenger = StrongReferenceMessenger.Default;
+        _messenger = _session.Strong;
         _messenger.Register<ScriptEvent, ScriptStoppingRequestMessage, int>(this, (int)MessageChannels.ScriptStatus, OnScriptStopping);
         _messenger.Register<ScriptEvent, ScriptStartedMessage, int>(this, (int)MessageChannels.ScriptStatus, ScriptStarted);
         _messenger.Register<ScriptEvent, ScriptStoppedMessage, int>(this, (int)MessageChannels.ScriptStatus, ScriptStopped);

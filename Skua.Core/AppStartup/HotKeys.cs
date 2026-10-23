@@ -13,6 +13,7 @@ namespace Skua.Core.AppStartup;
 
 public class HotKeys
 {
+    private static SessionServices _session => new();
     [DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
@@ -116,11 +117,14 @@ public class HotKeys
     public static int GetActionId(string actionName) => _actionList.IndexOf(actionName);
     public static string? GetActionNameById(int id) => id >= 0 && id < _actionList.Count ? _actionList[id] : null;
 
-    private static Dictionary<string, IRelayCommand> _hotkeyRegistry = new();
+    private static readonly Dictionary<string, IRelayCommand> LegacyRegistry = new();
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<ScriptSessionContext, Dictionary<string, IRelayCommand>> SessionRegistries = new();
+    private static Dictionary<string, IRelayCommand> _hotkeyRegistry => ScriptSessionContext.Current is { } session
+        ? SessionRegistries.GetValue(session, _ => new()) : LegacyRegistry;
 
     public static void RegisterHotkey(string name, IRelayCommand command)
     {
-        _hotkeyRegistry[name] = command;
+        _hotkeyRegistry[name] = ScriptSessionContext.Current is { } session ? new SessionCommand(command, session) : command;
     }
 
     public static Dictionary<string, IRelayCommand> GetRegistry() => _hotkeyRegistry;
@@ -321,7 +325,7 @@ public class HotKeys
         {
             try
             {
-                Ioc.Default.GetRequiredService<IHotKeyService>();
+                _session.GetRequiredService<IHotKeyService>();
             }
             catch { }
         }
@@ -391,9 +395,11 @@ public class HotKeys
 
     public static Dictionary<string, IRelayCommand> CreateHotKeys(IServiceProvider s)
     {
+        var context = s.GetService(typeof(ScriptSessionContext)) as ScriptSessionContext;
+        using var sessionScope = context?.Enter();
         _hotkeyRegistry["ToggleScript"] = new RelayCommand(() => ExecuteOrForward("ToggleScript", ToggleScriptLocal));
         _hotkeyRegistry["LoadScript"] = new RelayCommand(() => ExecuteOrForward("LoadScript", LoadScriptLocal));
-        _hotkeyRegistry["OpenBank"] = new RelayCommand(() => ExecuteOrForward("OpenBank", () => Ioc.Default.GetRequiredService<IScriptBank>().Open()));
+        _hotkeyRegistry["OpenBank"] = new RelayCommand(() => ExecuteOrForward("OpenBank", () => _session.GetRequiredService<IScriptBank>().Open()));
         _hotkeyRegistry["OpenConsole"] = new RelayCommand(() => ExecuteOrForward("OpenConsole", OpenConsoleLocal));
         _hotkeyRegistry["SearchScripts"] = new RelayCommand(() => ExecuteOrForward("SearchScripts", SearchScriptsLocal));
         _hotkeyRegistry["ToggleAutoAttack"] = new RelayCommand(() => ExecuteOrForward("ToggleAutoAttack", ToggleAutoAttackLocal));
@@ -401,15 +407,15 @@ public class HotKeys
         _hotkeyRegistry["ToggleLagKiller"] = new RelayCommand(() => ExecuteOrForward("ToggleLagKiller", ToggleLagKillerLocal));
 
         // Custom Vast Actions
-        _hotkeyRegistry["ToggleHeadlessMode"] = new RelayCommand(() => ExecuteOrForward("ToggleHeadlessMode", () => Ioc.Default.GetRequiredService<IScriptOption>().HeadlessMode ^= true));
-        _hotkeyRegistry["ToggleStreamerMode"] = new RelayCommand(() => ExecuteOrForward("ToggleStreamerMode", () => Ioc.Default.GetRequiredService<IScriptOption>().StreamerMode ^= true));
-        _hotkeyRegistry["ToggleHidePlayers"] = new RelayCommand(() => ExecuteOrForward("ToggleHidePlayers", () => Ioc.Default.GetRequiredService<IScriptOption>().HidePlayers ^= true));
-        _hotkeyRegistry["ToggleDisableFX"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableFX", () => Ioc.Default.GetRequiredService<IScriptOption>().DisableFX ^= true));
-        _hotkeyRegistry["ToggleMagnetise"] = new RelayCommand(() => ExecuteOrForward("ToggleMagnetise", () => Ioc.Default.GetRequiredService<IScriptOption>().Magnetise ^= true));
-        _hotkeyRegistry["ToggleInfiniteRange"] = new RelayCommand(() => ExecuteOrForward("ToggleInfiniteRange", () => Ioc.Default.GetRequiredService<IScriptOption>().InfiniteRange ^= true));
-        _hotkeyRegistry["Logout"] = new RelayCommand(() => ExecuteOrForward("Logout", () => Ioc.Default.GetRequiredService<IScriptServers>().Logout()));
-        _hotkeyRegistry["StopScript"] = new RelayCommand(() => ExecuteOrForward("StopScript", () => Ioc.Default.GetRequiredService<IScriptManager>().StopScript()));
-        _hotkeyRegistry["JumpToHome"] = new RelayCommand(() => ExecuteOrForward("JumpToHome", () => Ioc.Default.GetRequiredService<IScriptMap>().Join("home", "Enter", "Spawn")));
+        _hotkeyRegistry["ToggleHeadlessMode"] = new RelayCommand(() => ExecuteOrForward("ToggleHeadlessMode", () => _session.GetRequiredService<IScriptOption>().HeadlessMode ^= true));
+        _hotkeyRegistry["ToggleStreamerMode"] = new RelayCommand(() => ExecuteOrForward("ToggleStreamerMode", () => _session.GetRequiredService<IScriptOption>().StreamerMode ^= true));
+        _hotkeyRegistry["ToggleHidePlayers"] = new RelayCommand(() => ExecuteOrForward("ToggleHidePlayers", () => _session.GetRequiredService<IScriptOption>().HidePlayers ^= true));
+        _hotkeyRegistry["ToggleDisableFX"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableFX", () => _session.GetRequiredService<IScriptOption>().DisableFX ^= true));
+        _hotkeyRegistry["ToggleMagnetise"] = new RelayCommand(() => ExecuteOrForward("ToggleMagnetise", () => _session.GetRequiredService<IScriptOption>().Magnetise ^= true));
+        _hotkeyRegistry["ToggleInfiniteRange"] = new RelayCommand(() => ExecuteOrForward("ToggleInfiniteRange", () => _session.GetRequiredService<IScriptOption>().InfiniteRange ^= true));
+        _hotkeyRegistry["Logout"] = new RelayCommand(() => ExecuteOrForward("Logout", () => _session.GetRequiredService<IScriptServers>().Logout()));
+        _hotkeyRegistry["StopScript"] = new RelayCommand(() => ExecuteOrForward("StopScript", () => _session.GetRequiredService<IScriptManager>().StopScript()));
+        _hotkeyRegistry["JumpToHome"] = new RelayCommand(() => ExecuteOrForward("JumpToHome", () => _session.GetRequiredService<IScriptMap>().Join("home", "Enter", "Spawn")));
 
         // Army Control
         _hotkeyRegistry["ArmyStartScripts"] = new RelayCommand(() => ExecuteOrForward("ArmyStartScripts", () => BroadcastArmyMessage(0x0400 + 450, 99, 1)));
@@ -418,68 +424,89 @@ public class HotKeys
         _hotkeyRegistry["ArmyLogoutAll"] = new RelayCommand(() => ExecuteOrForward("ArmyLogoutAll", () => BroadcastArmyMessage(0x0400 + 448, 0, 0)));
         _hotkeyRegistry["ArmyLoadScriptAll"] = new RelayCommand(ArmyLoadScriptAllLocal);
         
-        _hotkeyRegistry["ArmyToggleLagKiller"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleLagKiller", () => BroadcastArmyMessage(0x0400 + 450, 1, (Ioc.Default.GetRequiredService<IScriptOption>().LagKiller ^= true) ? 1 : 0)));
-        _hotkeyRegistry["ArmyToggleHeadlessMode"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleHeadlessMode", () => BroadcastArmyMessage(0x0400 + 450, 2, (Ioc.Default.GetRequiredService<IScriptOption>().HeadlessMode ^= true) ? 1 : 0)));
-        _hotkeyRegistry["ArmyToggleHidePlayers"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleHidePlayers", () => BroadcastArmyMessage(0x0400 + 450, 3, (Ioc.Default.GetRequiredService<IScriptOption>().HidePlayers ^= true) ? 1 : 0)));
-        _hotkeyRegistry["ArmyToggleDisableFX"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleDisableFX", () => BroadcastArmyMessage(0x0400 + 450, 4, (Ioc.Default.GetRequiredService<IScriptOption>().DisableFX ^= true) ? 1 : 0)));
-        _hotkeyRegistry["ArmyToggleInfiniteRange"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleInfiniteRange", () => BroadcastArmyMessage(0x0400 + 450, 5, (Ioc.Default.GetRequiredService<IScriptOption>().InfiniteRange ^= true) ? 1 : 0)));
-        _hotkeyRegistry["ArmyToggleUseFunctionBasedSkills"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleUseFunctionBasedSkills", () => BroadcastArmyMessage(0x0400 + 450, 8, (Ioc.Default.GetRequiredService<IScriptOption>().UseFunctionBasedSkills ^= true) ? 1 : 0)));
-        _hotkeyRegistry["ArmyToggleStreamerMode"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleStreamerMode", () => BroadcastArmyMessage(0x0400 + 450, 9, (Ioc.Default.GetRequiredService<IScriptOption>().StreamerMode ^= true) ? 1 : 0)));
+        _hotkeyRegistry["ArmyToggleLagKiller"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleLagKiller", () => BroadcastArmyMessage(0x0400 + 450, 1, (_session.GetRequiredService<IScriptOption>().LagKiller ^= true) ? 1 : 0)));
+        _hotkeyRegistry["ArmyToggleHeadlessMode"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleHeadlessMode", () => BroadcastArmyMessage(0x0400 + 450, 2, (_session.GetRequiredService<IScriptOption>().HeadlessMode ^= true) ? 1 : 0)));
+        _hotkeyRegistry["ArmyToggleHidePlayers"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleHidePlayers", () => BroadcastArmyMessage(0x0400 + 450, 3, (_session.GetRequiredService<IScriptOption>().HidePlayers ^= true) ? 1 : 0)));
+        _hotkeyRegistry["ArmyToggleDisableFX"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleDisableFX", () => BroadcastArmyMessage(0x0400 + 450, 4, (_session.GetRequiredService<IScriptOption>().DisableFX ^= true) ? 1 : 0)));
+        _hotkeyRegistry["ArmyToggleInfiniteRange"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleInfiniteRange", () => BroadcastArmyMessage(0x0400 + 450, 5, (_session.GetRequiredService<IScriptOption>().InfiniteRange ^= true) ? 1 : 0)));
+        _hotkeyRegistry["ArmyToggleUseFunctionBasedSkills"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleUseFunctionBasedSkills", () => BroadcastArmyMessage(0x0400 + 450, 8, (_session.GetRequiredService<IScriptOption>().UseFunctionBasedSkills ^= true) ? 1 : 0)));
+        _hotkeyRegistry["ArmyToggleStreamerMode"] = new RelayCommand(() => ExecuteOrForward("ArmyToggleStreamerMode", () => BroadcastArmyMessage(0x0400 + 450, 9, (_session.GetRequiredService<IScriptOption>().StreamerMode ^= true) ? 1 : 0)));
 
         // IScriptOption Toggles
-        _hotkeyRegistry["ToggleRejectAllDrops"] = new RelayCommand(() => ExecuteOrForward("ToggleRejectAllDrops", () => Ioc.Default.GetRequiredService<IScriptOption>().RejectAllDrops ^= true));
-        _hotkeyRegistry["ToggleAggroAllMonsters"] = new RelayCommand(() => ExecuteOrForward("ToggleAggroAllMonsters", () => Ioc.Default.GetRequiredService<IScriptOption>().AggroAllMonsters ^= true));
-        _hotkeyRegistry["ToggleAggroMonsters"] = new RelayCommand(() => ExecuteOrForward("ToggleAggroMonsters", () => Ioc.Default.GetRequiredService<IScriptOption>().AggroMonsters ^= true));
-        _hotkeyRegistry["ToggleAttackWithoutTarget"] = new RelayCommand(() => ExecuteOrForward("ToggleAttackWithoutTarget", () => Ioc.Default.GetRequiredService<IScriptOption>().AttackWithoutTarget ^= true));
-        _hotkeyRegistry["ToggleDisableDeathAds"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableDeathAds", () => Ioc.Default.GetRequiredService<IScriptOption>().DisableDeathAds ^= true));
-        _hotkeyRegistry["ToggleRestPackets"] = new RelayCommand(() => ExecuteOrForward("ToggleRestPackets", () => Ioc.Default.GetRequiredService<IScriptOption>().RestPackets ^= true));
-        _hotkeyRegistry["ToggleShowFPS"] = new RelayCommand(() => ExecuteOrForward("ToggleShowFPS", () => Ioc.Default.GetRequiredService<IScriptOption>().ShowFPS ^= true));
-        _hotkeyRegistry["ToggleSkipCutscenes"] = new RelayCommand(() => ExecuteOrForward("ToggleSkipCutscenes", () => Ioc.Default.GetRequiredService<IScriptOption>().SkipCutscenes ^= true));
+        _hotkeyRegistry["ToggleRejectAllDrops"] = new RelayCommand(() => ExecuteOrForward("ToggleRejectAllDrops", () => _session.GetRequiredService<IScriptOption>().RejectAllDrops ^= true));
+        _hotkeyRegistry["ToggleAggroAllMonsters"] = new RelayCommand(() => ExecuteOrForward("ToggleAggroAllMonsters", () => _session.GetRequiredService<IScriptOption>().AggroAllMonsters ^= true));
+        _hotkeyRegistry["ToggleAggroMonsters"] = new RelayCommand(() => ExecuteOrForward("ToggleAggroMonsters", () => _session.GetRequiredService<IScriptOption>().AggroMonsters ^= true));
+        _hotkeyRegistry["ToggleAttackWithoutTarget"] = new RelayCommand(() => ExecuteOrForward("ToggleAttackWithoutTarget", () => _session.GetRequiredService<IScriptOption>().AttackWithoutTarget ^= true));
+        _hotkeyRegistry["ToggleDisableDeathAds"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableDeathAds", () => _session.GetRequiredService<IScriptOption>().DisableDeathAds ^= true));
+        _hotkeyRegistry["ToggleRestPackets"] = new RelayCommand(() => ExecuteOrForward("ToggleRestPackets", () => _session.GetRequiredService<IScriptOption>().RestPackets ^= true));
+        _hotkeyRegistry["ToggleShowFPS"] = new RelayCommand(() => ExecuteOrForward("ToggleShowFPS", () => _session.GetRequiredService<IScriptOption>().ShowFPS ^= true));
+        _hotkeyRegistry["ToggleSkipCutscenes"] = new RelayCommand(() => ExecuteOrForward("ToggleSkipCutscenes", () => _session.GetRequiredService<IScriptOption>().SkipCutscenes ^= true));
 
         // IScriptLite Toggles
-        _hotkeyRegistry["ToggleCustomDropsUI"] = new RelayCommand(() => ExecuteOrForward("ToggleCustomDropsUI", () => Ioc.Default.GetRequiredService<IScriptLite>().CustomDropsUI ^= true));
-        _hotkeyRegistry["ToggleQuestLogTurnIns"] = new RelayCommand(() => ExecuteOrForward("ToggleQuestLogTurnIns", () => Ioc.Default.GetRequiredService<IScriptLite>().QuestLogTurnIns ^= true));
-        _hotkeyRegistry["ToggleBattlePets"] = new RelayCommand(() => ExecuteOrForward("ToggleBattlePets", () => Ioc.Default.GetRequiredService<IScriptLite>().BattlePets ^= true));
-        _hotkeyRegistry["ToggleStaticPlayerArt"] = new RelayCommand(() => ExecuteOrForward("ToggleStaticPlayerArt", () => Ioc.Default.GetRequiredService<IScriptLite>().StaticPlayerArt ^= true));
-        _hotkeyRegistry["ToggleChatFilter"] = new RelayCommand(() => ExecuteOrForward("ToggleChatFilter", () => Ioc.Default.GetRequiredService<IScriptLite>().ChatFilter ^= true));
-        _hotkeyRegistry["ToggleChatUI"] = new RelayCommand(() => ExecuteOrForward("ToggleChatUI", () => Ioc.Default.GetRequiredService<IScriptLite>().ChatUI ^= true));
-        _hotkeyRegistry["ToggleAurasUI"] = new RelayCommand(() => ExecuteOrForward("ToggleAurasUI", () => Ioc.Default.GetRequiredService<IScriptLite>().AurasUI ^= true));
-        _hotkeyRegistry["ToggleDraggableDrops"] = new RelayCommand(() => ExecuteOrForward("ToggleDraggableDrops", () => Ioc.Default.GetRequiredService<IScriptLite>().DraggableDrops ^= true));
-        _hotkeyRegistry["ToggleDisableDamageNumbers"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableDamageNumbers", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableDamageNumbers ^= true));
-        _hotkeyRegistry["ToggleDisableSoundFx"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableSoundFx", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableSoundFx ^= true));
-        _hotkeyRegistry["ToggleDisableQuestPopup"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableQuestPopup", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableQuestPopup ^= true));
-        _hotkeyRegistry["ToggleDisableQuestTracker"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableQuestTracker", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableQuestTracker ^= true));
-        _hotkeyRegistry["ToggleQuestPinner"] = new RelayCommand(() => ExecuteOrForward("ToggleQuestPinner", () => Ioc.Default.GetRequiredService<IScriptLite>().QuestPinner ^= true));
-        _hotkeyRegistry["ToggleQuestProgressNotifications"] = new RelayCommand(() => ExecuteOrForward("ToggleQuestProgressNotifications", () => Ioc.Default.GetRequiredService<IScriptLite>().QuestProgressNotifications ^= true));
-        _hotkeyRegistry["ToggleVisualSkillCooldowns"] = new RelayCommand(() => ExecuteOrForward("ToggleVisualSkillCooldowns", () => Ioc.Default.GetRequiredService<IScriptLite>().VisualSkillCooldowns ^= true));
-        _hotkeyRegistry["ToggleHideGroundItems"] = new RelayCommand(() => ExecuteOrForward("ToggleHideGroundItems", () => Ioc.Default.GetRequiredService<IScriptLite>().HideGroundItems ^= true));
-        _hotkeyRegistry["ToggleHideHealingBubbles"] = new RelayCommand(() => ExecuteOrForward("ToggleHideHealingBubbles", () => Ioc.Default.GetRequiredService<IScriptLite>().HideHealingBubbles ^= true));
-        _hotkeyRegistry["ToggleDisableAuraAnimations"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableAuraAnimations", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableAuraAnimations ^= true));
-        _hotkeyRegistry["ToggleHidePlayerNames"] = new RelayCommand(() => ExecuteOrForward("ToggleHidePlayerNames", () => Ioc.Default.GetRequiredService<IScriptLite>().HidePlayerNames ^= true));
-        _hotkeyRegistry["ToggleDisableDamageStrobe"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableDamageStrobe", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableDamageStrobe ^= true));
-        _hotkeyRegistry["ToggleDisableMonsterAnimation"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableMonsterAnimation", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableMonsterAnimation ^= true));
-        _hotkeyRegistry["ToggleDisableRedWarning"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableRedWarning", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableRedWarning ^= true));
-        _hotkeyRegistry["ToggleDisableSelfAnimation"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableSelfAnimation", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableSelfAnimation ^= true));
-        _hotkeyRegistry["ToggleDisableSkillAnimation"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableSkillAnimation", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableSkillAnimation ^= true));
-        _hotkeyRegistry["ToggleDisableWeaponAnimation"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableWeaponAnimation", () => Ioc.Default.GetRequiredService<IScriptLite>().DisableWeaponAnimation ^= true));
-        _hotkeyRegistry["ToggleFreezeMonsterPosition"] = new RelayCommand(() => ExecuteOrForward("ToggleFreezeMonsterPosition", () => Ioc.Default.GetRequiredService<IScriptLite>().FreezeMonsterPosition ^= true));
-        _hotkeyRegistry["ToggleHideUI"] = new RelayCommand(() => ExecuteOrForward("ToggleHideUI", () => Ioc.Default.GetRequiredService<IScriptLite>().HideUI ^= true));
-        _hotkeyRegistry["ToggleInvisibleMonsters"] = new RelayCommand(() => ExecuteOrForward("ToggleInvisibleMonsters", () => Ioc.Default.GetRequiredService<IScriptLite>().InvisibleMonsters ^= true));
-        _hotkeyRegistry["ToggleShowNameTags"] = new RelayCommand(() => ExecuteOrForward("ToggleShowNameTags", () => Ioc.Default.GetRequiredService<IScriptLite>().ShowNameTags ^= true));
-        _hotkeyRegistry["ToggleShowShadows"] = new RelayCommand(() => ExecuteOrForward("ToggleShowShadows", () => Ioc.Default.GetRequiredService<IScriptLite>().ShowShadows ^= true));
-        _hotkeyRegistry["ToggleHideGuildNamesOnly"] = new RelayCommand(() => ExecuteOrForward("ToggleHideGuildNamesOnly", () => Ioc.Default.GetRequiredService<IScriptLite>().HideGuildNamesOnly ^= true));
-        _hotkeyRegistry["ToggleHideYourNameOnly"] = new RelayCommand(() => ExecuteOrForward("ToggleHideYourNameOnly", () => Ioc.Default.GetRequiredService<IScriptLite>().HideYourNameOnly ^= true));
-        _hotkeyRegistry["ToggleShowYourGroundItemOnly"] = new RelayCommand(() => ExecuteOrForward("ToggleShowYourGroundItemOnly", () => Ioc.Default.GetRequiredService<IScriptLite>().ShowYourGroundItemOnly ^= true));
-        _hotkeyRegistry["ToggleShowYourAuraAnimationOnly"] = new RelayCommand(() => ExecuteOrForward("ToggleShowYourAuraAnimationOnly", () => Ioc.Default.GetRequiredService<IScriptLite>().ShowYourAuraAnimationOnly ^= true));
-        _hotkeyRegistry["ToggleShowMonsterType"] = new RelayCommand(() => ExecuteOrForward("ToggleShowMonsterType", () => Ioc.Default.GetRequiredService<IScriptLite>().ShowMonsterType ^= true));
-        _hotkeyRegistry["ToggleUntargetDead"] = new RelayCommand(() => ExecuteOrForward("ToggleUntargetDead", () => Ioc.Default.GetRequiredService<IScriptLite>().UntargetDead ^= true));
-        _hotkeyRegistry["ToggleUntargetSelf"] = new RelayCommand(() => ExecuteOrForward("ToggleUntargetSelf", () => Ioc.Default.GetRequiredService<IScriptLite>().UntargetSelf ^= true));
+        _hotkeyRegistry["ToggleCustomDropsUI"] = new RelayCommand(() => ExecuteOrForward("ToggleCustomDropsUI", () => _session.GetRequiredService<IScriptLite>().CustomDropsUI ^= true));
+        _hotkeyRegistry["ToggleQuestLogTurnIns"] = new RelayCommand(() => ExecuteOrForward("ToggleQuestLogTurnIns", () => _session.GetRequiredService<IScriptLite>().QuestLogTurnIns ^= true));
+        _hotkeyRegistry["ToggleBattlePets"] = new RelayCommand(() => ExecuteOrForward("ToggleBattlePets", () => _session.GetRequiredService<IScriptLite>().BattlePets ^= true));
+        _hotkeyRegistry["ToggleStaticPlayerArt"] = new RelayCommand(() => ExecuteOrForward("ToggleStaticPlayerArt", () => _session.GetRequiredService<IScriptLite>().StaticPlayerArt ^= true));
+        _hotkeyRegistry["ToggleChatFilter"] = new RelayCommand(() => ExecuteOrForward("ToggleChatFilter", () => _session.GetRequiredService<IScriptLite>().ChatFilter ^= true));
+        _hotkeyRegistry["ToggleChatUI"] = new RelayCommand(() => ExecuteOrForward("ToggleChatUI", () => _session.GetRequiredService<IScriptLite>().ChatUI ^= true));
+        _hotkeyRegistry["ToggleAurasUI"] = new RelayCommand(() => ExecuteOrForward("ToggleAurasUI", () => _session.GetRequiredService<IScriptLite>().AurasUI ^= true));
+        _hotkeyRegistry["ToggleDraggableDrops"] = new RelayCommand(() => ExecuteOrForward("ToggleDraggableDrops", () => _session.GetRequiredService<IScriptLite>().DraggableDrops ^= true));
+        _hotkeyRegistry["ToggleDisableDamageNumbers"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableDamageNumbers", () => _session.GetRequiredService<IScriptLite>().DisableDamageNumbers ^= true));
+        _hotkeyRegistry["ToggleDisableSoundFx"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableSoundFx", () => _session.GetRequiredService<IScriptLite>().DisableSoundFx ^= true));
+        _hotkeyRegistry["ToggleDisableQuestPopup"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableQuestPopup", () => _session.GetRequiredService<IScriptLite>().DisableQuestPopup ^= true));
+        _hotkeyRegistry["ToggleDisableQuestTracker"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableQuestTracker", () => _session.GetRequiredService<IScriptLite>().DisableQuestTracker ^= true));
+        _hotkeyRegistry["ToggleQuestPinner"] = new RelayCommand(() => ExecuteOrForward("ToggleQuestPinner", () => _session.GetRequiredService<IScriptLite>().QuestPinner ^= true));
+        _hotkeyRegistry["ToggleQuestProgressNotifications"] = new RelayCommand(() => ExecuteOrForward("ToggleQuestProgressNotifications", () => _session.GetRequiredService<IScriptLite>().QuestProgressNotifications ^= true));
+        _hotkeyRegistry["ToggleVisualSkillCooldowns"] = new RelayCommand(() => ExecuteOrForward("ToggleVisualSkillCooldowns", () => _session.GetRequiredService<IScriptLite>().VisualSkillCooldowns ^= true));
+        _hotkeyRegistry["ToggleHideGroundItems"] = new RelayCommand(() => ExecuteOrForward("ToggleHideGroundItems", () => _session.GetRequiredService<IScriptLite>().HideGroundItems ^= true));
+        _hotkeyRegistry["ToggleHideHealingBubbles"] = new RelayCommand(() => ExecuteOrForward("ToggleHideHealingBubbles", () => _session.GetRequiredService<IScriptLite>().HideHealingBubbles ^= true));
+        _hotkeyRegistry["ToggleDisableAuraAnimations"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableAuraAnimations", () => _session.GetRequiredService<IScriptLite>().DisableAuraAnimations ^= true));
+        _hotkeyRegistry["ToggleHidePlayerNames"] = new RelayCommand(() => ExecuteOrForward("ToggleHidePlayerNames", () => _session.GetRequiredService<IScriptLite>().HidePlayerNames ^= true));
+        _hotkeyRegistry["ToggleDisableDamageStrobe"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableDamageStrobe", () => _session.GetRequiredService<IScriptLite>().DisableDamageStrobe ^= true));
+        _hotkeyRegistry["ToggleDisableMonsterAnimation"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableMonsterAnimation", () => _session.GetRequiredService<IScriptLite>().DisableMonsterAnimation ^= true));
+        _hotkeyRegistry["ToggleDisableRedWarning"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableRedWarning", () => _session.GetRequiredService<IScriptLite>().DisableRedWarning ^= true));
+        _hotkeyRegistry["ToggleDisableSelfAnimation"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableSelfAnimation", () => _session.GetRequiredService<IScriptLite>().DisableSelfAnimation ^= true));
+        _hotkeyRegistry["ToggleDisableSkillAnimation"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableSkillAnimation", () => _session.GetRequiredService<IScriptLite>().DisableSkillAnimation ^= true));
+        _hotkeyRegistry["ToggleDisableWeaponAnimation"] = new RelayCommand(() => ExecuteOrForward("ToggleDisableWeaponAnimation", () => _session.GetRequiredService<IScriptLite>().DisableWeaponAnimation ^= true));
+        _hotkeyRegistry["ToggleFreezeMonsterPosition"] = new RelayCommand(() => ExecuteOrForward("ToggleFreezeMonsterPosition", () => _session.GetRequiredService<IScriptLite>().FreezeMonsterPosition ^= true));
+        _hotkeyRegistry["ToggleHideUI"] = new RelayCommand(() => ExecuteOrForward("ToggleHideUI", () => _session.GetRequiredService<IScriptLite>().HideUI ^= true));
+        _hotkeyRegistry["ToggleInvisibleMonsters"] = new RelayCommand(() => ExecuteOrForward("ToggleInvisibleMonsters", () => _session.GetRequiredService<IScriptLite>().InvisibleMonsters ^= true));
+        _hotkeyRegistry["ToggleShowNameTags"] = new RelayCommand(() => ExecuteOrForward("ToggleShowNameTags", () => _session.GetRequiredService<IScriptLite>().ShowNameTags ^= true));
+        _hotkeyRegistry["ToggleShowShadows"] = new RelayCommand(() => ExecuteOrForward("ToggleShowShadows", () => _session.GetRequiredService<IScriptLite>().ShowShadows ^= true));
+        _hotkeyRegistry["ToggleHideGuildNamesOnly"] = new RelayCommand(() => ExecuteOrForward("ToggleHideGuildNamesOnly", () => _session.GetRequiredService<IScriptLite>().HideGuildNamesOnly ^= true));
+        _hotkeyRegistry["ToggleHideYourNameOnly"] = new RelayCommand(() => ExecuteOrForward("ToggleHideYourNameOnly", () => _session.GetRequiredService<IScriptLite>().HideYourNameOnly ^= true));
+        _hotkeyRegistry["ToggleShowYourGroundItemOnly"] = new RelayCommand(() => ExecuteOrForward("ToggleShowYourGroundItemOnly", () => _session.GetRequiredService<IScriptLite>().ShowYourGroundItemOnly ^= true));
+        _hotkeyRegistry["ToggleShowYourAuraAnimationOnly"] = new RelayCommand(() => ExecuteOrForward("ToggleShowYourAuraAnimationOnly", () => _session.GetRequiredService<IScriptLite>().ShowYourAuraAnimationOnly ^= true));
+        _hotkeyRegistry["ToggleShowMonsterType"] = new RelayCommand(() => ExecuteOrForward("ToggleShowMonsterType", () => _session.GetRequiredService<IScriptLite>().ShowMonsterType ^= true));
+        _hotkeyRegistry["ToggleUntargetDead"] = new RelayCommand(() => ExecuteOrForward("ToggleUntargetDead", () => _session.GetRequiredService<IScriptLite>().UntargetDead ^= true));
+        _hotkeyRegistry["ToggleUntargetSelf"] = new RelayCommand(() => ExecuteOrForward("ToggleUntargetSelf", () => _session.GetRequiredService<IScriptLite>().UntargetSelf ^= true));
 
         // Utilities
-        _hotkeyRegistry["PlayerRest"] = new RelayCommand(() => ExecuteOrForward("PlayerRest", () => Ioc.Default.GetRequiredService<IScriptPlayer>().Rest()));
-        _hotkeyRegistry["RejectAllDrops"] = new RelayCommand(() => ExecuteOrForward("RejectAllDrops", () => Ioc.Default.GetRequiredService<IScriptDrop>().RejectAll()));
+        _hotkeyRegistry["PlayerRest"] = new RelayCommand(() => ExecuteOrForward("PlayerRest", () => _session.GetRequiredService<IScriptPlayer>().Rest()));
+        _hotkeyRegistry["RejectAllDrops"] = new RelayCommand(() => ExecuteOrForward("RejectAllDrops", () => _session.GetRequiredService<IScriptDrop>().RejectAll()));
 
+        if (context is not null)
+            foreach (string name in _hotkeyRegistry.Keys.ToArray())
+                _hotkeyRegistry[name] = new SessionCommand(_hotkeyRegistry[name], context);
         return _hotkeyRegistry;
+    }
+
+    private sealed class SessionCommand(IRelayCommand command, ScriptSessionContext session) : IRelayCommand
+    {
+        public event EventHandler? CanExecuteChanged { add => command.CanExecuteChanged += value; remove => command.CanExecuteChanged -= value; }
+        public bool CanExecute(object? parameter)
+        {
+            if (session.IsDisposed) return false;
+            using var scope = session.Enter();
+            return command.CanExecute(parameter);
+        }
+        public void Execute(object? parameter)
+        {
+            if (session.IsDisposed) return;
+            using var scope = session.Enter();
+            command.Execute(parameter);
+        }
+        public void NotifyCanExecuteChanged() => command.NotifyCanExecuteChanged();
     }
 
     private static bool CanExecuteHotKey()
@@ -501,34 +528,34 @@ public class HotKeys
 
     private static void ToggleAutoHuntLocal()
     {
-        if (Ioc.Default.GetRequiredService<IScriptAuto>().IsRunning)
+        if (_session.GetRequiredService<IScriptAuto>().IsRunning)
         {
-            StrongReferenceMessenger.Default.Send<StopAutoMessage>();
+            _session.Strong.Send<StopAutoMessage>();
             return;
         }
 
-        StrongReferenceMessenger.Default.Send<StartAutoHuntMessage>();
+        _session.Strong.Send<StartAutoHuntMessage>();
     }
 
     private static void ToggleAutoAttackLocal()
     {
-        if (Ioc.Default.GetRequiredService<IScriptAuto>().IsRunning)
+        if (_session.GetRequiredService<IScriptAuto>().IsRunning)
         {
-            StrongReferenceMessenger.Default.Send<StopAutoMessage>();
+            _session.Strong.Send<StopAutoMessage>();
             return;
         }
 
-        StrongReferenceMessenger.Default.Send<StartAutoAttackMessage>();
+        _session.Strong.Send<StartAutoAttackMessage>();
     }
 
     private static void OpenConsoleLocal()
     {
-        Ioc.Default.GetRequiredService<IWindowService>().ShowManagedWindow("Console");
+        _session.GetRequiredService<IWindowService>().ShowManagedWindow("Console");
     }
 
     private static void SearchScriptsLocal()
     {
-        Ioc.Default.GetRequiredService<IWindowService>().ShowManagedWindow("Script Repo");
+        _session.GetRequiredService<IWindowService>().ShowManagedWindow("Script Repo");
     }
 
     private static void ArmyLoadScriptAllLocal()
@@ -537,7 +564,7 @@ public class HotKeys
         {
             try
             {
-                Ioc.Default.GetRequiredService<IWindowService>().ShowManagedWindow("Script Repo");
+                _session.GetRequiredService<IWindowService>().ShowManagedWindow("Script Repo");
             }
             catch { }
         }
@@ -549,7 +576,7 @@ public class HotKeys
         {
             try
             {
-                Ioc.Default.GetRequiredService<IWindowService>().ShowManagedWindow("Script Repo");
+                _session.GetRequiredService<IWindowService>().ShowManagedWindow("Script Repo");
             }
             catch { }
         }
@@ -557,17 +584,17 @@ public class HotKeys
 
     private static void ToggleScriptLocal()
     {
-        StrongReferenceMessenger.Default.Send<ToggleScriptMessage, int>((int)MessageChannels.ScriptStatus);
+        _session.Strong.Send<ToggleScriptMessage, int>((int)MessageChannels.ScriptStatus);
     }
 
     private static void LoadScriptLocal()
     {
-        StrongReferenceMessenger.Default.Send<LoadScriptMessage, int>(new(null), (int)MessageChannels.ScriptStatus);
+        _session.Strong.Send<LoadScriptMessage, int>(new(null), (int)MessageChannels.ScriptStatus);
     }
 
     private static void ToggleLagKillerLocal()
     {
-        IScriptOption options = Ioc.Default.GetRequiredService<IScriptOption>();
+        IScriptOption options = _session.GetRequiredService<IScriptOption>();
         options.LagKiller = !options.LagKiller;
     }
 

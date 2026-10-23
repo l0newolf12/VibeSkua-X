@@ -8,6 +8,8 @@ import flash.display.StageAlign;
 import flash.display.StageScaleMode;
 import flash.events.Event;
 import flash.events.KeyboardEvent;
+import flash.events.IOErrorEvent;
+import flash.events.SecurityErrorEvent;
 import flash.events.MouseEvent;
 import flash.events.TimerEvent;
 import flash.net.URLLoader;
@@ -64,7 +66,9 @@ public class Main extends MovieClip {
         else addEventListener(Event.ADDED_TO_STAGE, this.init);
     }
 
-    public static function loadGame():void {
+    public static function loadGame(versionEndpoint:String = null, gameBaseUrl:String = null):void {
+        if (versionEndpoint) Main.instance.versionUrl = versionEndpoint;
+        if (gameBaseUrl) Main.instance.sURL = gameBaseUrl;
         Main.instance.onAddedToStage();
         Main.instance.external.call('pre-load');
     }
@@ -94,24 +98,67 @@ public class Main extends MovieClip {
         Security.allowDomain('*');
         this.urlLoader = new URLLoader();
         this.urlLoader.addEventListener(Event.COMPLETE, this.onDataComplete);
-        this.urlLoader.load(new URLRequest(this.versionUrl));
+        this.urlLoader.addEventListener(IOErrorEvent.IO_ERROR, this.onVersionError);
+        this.urlLoader.addEventListener(SecurityErrorEvent.SECURITY_ERROR, this.onVersionError);
+        try { this.urlLoader.load(new URLRequest(this.versionUrl)); }
+        catch (error:Error) { this.reportLoadFailure("version request", error.message); }
     }
 
     private function onDataComplete(event:Event):void {
+        this.clearVersionListeners();
+        try {
+            this.vars = JSON.parse(event.target.data);
+            if (!this.vars || !(this.vars.sFile is String) || this.vars.sFile.length == 0)
+                throw new Error("The version response has no game file name.");
+            this.sFile = ((this.vars.sFile + '?ver=') + Math.random());
+            this.loadGame();
+        } catch (error:Error) { this.reportLoadFailure("version response", error.message); }
+    }
+
+    private function clearVersionListeners():void {
+        if (!this.urlLoader) return;
         this.urlLoader.removeEventListener(Event.COMPLETE, this.onDataComplete);
-        this.vars = JSON.parse(event.target.data);
-        this.sFile = ((this.vars.sFile + '?ver=') + Math.random());
-        this.loadGame()
+        this.urlLoader.removeEventListener(IOErrorEvent.IO_ERROR, this.onVersionError);
+        this.urlLoader.removeEventListener(SecurityErrorEvent.SECURITY_ERROR, this.onVersionError);
+    }
+
+    private function onVersionError(event:Event):void {
+        this.reportLoadFailure("version request", event.toString());
+    }
+
+    private function onGameLoadError(event:Event):void {
+        this.reportLoadFailure("game download", event.toString());
+    }
+
+    private function clearGameLoadListeners():void {
+        if (!this.loader) return;
+        this.loader.contentLoaderInfo.removeEventListener(Event.COMPLETE, this.onComplete);
+        this.loader.contentLoaderInfo.removeEventListener(IOErrorEvent.IO_ERROR, this.onGameLoadError);
+        this.loader.contentLoaderInfo.removeEventListener(SecurityErrorEvent.SECURITY_ERROR, this.onGameLoadError);
+    }
+
+    private function reportLoadFailure(phase:String, reason:String):void {
+        this.clearVersionListeners();
+        this.clearGameLoadListeners();
+        this.external.call("gameLoadFailed", phase, reason);
     }
 
     private function loadGame():void {
         this.loader = new Loader();
         this.loader.contentLoaderInfo.addEventListener(Event.COMPLETE, this.onComplete);
-        this.loader.load(new URLRequest(this.sURL + 'gamefiles/' + this.sFile));
+        this.loader.contentLoaderInfo.addEventListener(IOErrorEvent.IO_ERROR, this.onGameLoadError);
+        this.loader.contentLoaderInfo.addEventListener(SecurityErrorEvent.SECURITY_ERROR, this.onGameLoadError);
+        try { this.loader.load(new URLRequest(this.sURL + 'gamefiles/' + this.sFile)); }
+        catch (error:Error) { this.reportLoadFailure("game download", error.message); }
     }
 
     private function onComplete(event:Event):void {
-        this.loader.contentLoaderInfo.removeEventListener(Event.COMPLETE, this.onComplete);
+        this.clearGameLoadListeners();
+        try { this.initializeGame(event); }
+        catch (error:Error) { this.reportLoadFailure("game initialization", error.message); }
+    }
+
+    private function initializeGame(event:Event):void {
 
         this.stopPacketCapture();
         if (this.game) {
@@ -155,7 +202,7 @@ public class Main extends MovieClip {
         
         Auras.initialize();
         
-        this.external.call('loaded');
+        this.external.call('loaded', this.vars.sFile);
     }
 
     public function onExtensionResponse(packet:*):void {

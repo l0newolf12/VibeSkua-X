@@ -85,6 +85,7 @@ host.Input = "3";
 await grabber.GetMapItem([new MapItem(42, 0, "test.swf", "test")], progress, CancellationToken.None);
 Check(mapItemCalls == 1, "Confirmed quantity did not perform the requested game action.");
 Console.WriteLine("PASS: cancelled, invalid, and confirmed input requests.");
+await EngineChecks.Run();
 Console.WriteLine("All VibeSkua X foundation checks passed.");
 
 static object? DefaultResult(MethodInfo method) =>
@@ -120,4 +121,3 @@ internal sealed class TestHost : IDialogService
     public bool? ShowMessageBox(string message, string caption, bool yesAndNo) => null;
     public DialogResult ShowMessageBox(string message, string caption, params string[] buttons) => DialogResult.Cancelled;
 }
-

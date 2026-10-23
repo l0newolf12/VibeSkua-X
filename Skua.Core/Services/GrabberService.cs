@@ -10,6 +10,7 @@ namespace Skua.Core.Services;
 
 public class GrabberService : IGrabberService
 {
+    private readonly SessionServices _session = new();
     public GrabberService(
         IScriptShop shops,
         IScriptQuest quests,
@@ -99,8 +100,8 @@ public class GrabberService : IGrabberService
         }
 
         List<MapItem> mapItems = objects.Cast<MapItem>().ToList();
-        IScriptMap map = Ioc.Default.GetService<IScriptMap>()!;
-        IDialogService dialogService = Ioc.Default.GetService<IDialogService>()!;
+        IScriptMap map = _session.GetService<IScriptMap>()!;
+        IDialogService dialogService = _session.GetService<IDialogService>()!;
         progress.Report(mapItems.Count == 1
             ? $"Getting Map Item [{mapItems[0].ID}, input quantity..."
             : $"Getting {mapItems.Count} Map Items, input quantity...");
@@ -150,7 +151,7 @@ public class GrabberService : IGrabberService
         }
 
         Monster monster = objects.Cast<Monster>().ToList()[0];
-        IScriptMap map = Ioc.Default.GetService<IScriptMap>()!;
+        IScriptMap map = _session.GetService<IScriptMap>()!;
         try
         {
             await Task.Run(() => map.Jump(monster.Cell, "Left"), token);
@@ -200,38 +201,38 @@ public class GrabberService : IGrabberService
 
         return;
 
-        static void Kill(Monster monster, CancellationToken token)
+        void Kill(Monster monster, CancellationToken token)
         {
-            if (monster.Cell != Ioc.Default.GetService<IScriptPlayer>()!.Cell)
-                Ioc.Default.GetService<IScriptMap>()!.Jump(monster.Cell, "Left");
+            if (monster.Cell != _session.GetService<IScriptPlayer>()!.Cell)
+                _session.GetService<IScriptMap>()!.Jump(monster.Cell, "Left");
 
-            Ioc.Default.GetService<IScriptKill>()!.Monster(monster, token);
+            _session.GetService<IScriptKill>()!.Monster(monster, token);
         }
     }
 
     public async Task BankToInv(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        await DefaultItemBaseTask("Unbanking", id => Ioc.Default.GetService<IScriptBank>()!.ToInventory(id), objects, progress, token);
+        await DefaultItemBaseTask("Unbanking", id => _session.GetService<IScriptBank>()!.ToInventory(id), objects, progress, token);
     }
 
     public async Task HouseInvToBank(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        await DefaultItemBaseTask("Banking", id => Ioc.Default.GetService<IScriptHouseInv>()!.ToBank(id), objects, progress, token);
+        await DefaultItemBaseTask("Banking", id => _session.GetService<IScriptHouseInv>()!.ToBank(id), objects, progress, token);
     }
 
     public async Task RegisterQuests(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        await DefaultQuestTask("Registering", Ioc.Default.GetService<IScriptQuest>()!.RegisterQuests, objects, progress, token);
+        await DefaultQuestTask("Registering", _session.GetService<IScriptQuest>()!.RegisterQuests, objects, progress, token);
     }
 
     public async Task AcceptQuests(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        await DefaultQuestTask("Accepting", Ioc.Default.GetService<IScriptQuest>()!.EnsureAccept, objects, progress, token);
+        await DefaultQuestTask("Accepting", _session.GetService<IScriptQuest>()!.EnsureAccept, objects, progress, token);
     }
 
     public async Task OpenQuests(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        await DefaultQuestTask("Showing", Ioc.Default.GetService<IScriptQuest>()!.Load, objects, progress, token);
+        await DefaultQuestTask("Showing", _session.GetService<IScriptQuest>()!.Load, objects, progress, token);
     }
 
     public async Task UpdateQuest(IList<object>? objects, IProgress<string> progress, CancellationToken token)
@@ -271,7 +272,7 @@ public class GrabberService : IGrabberService
         try
         {
             progress.Report($"Fake completing {questName}...");
-            await Task.Run(() => Ioc.Default.GetService<IScriptQuest>()!.UpdateQuest(questId), token);
+            await Task.Run(() => _session.GetService<IScriptQuest>()!.UpdateQuest(questId), token);
             progress.Report($"Fake completed {questName}.");
         }
         catch
@@ -325,7 +326,7 @@ public class GrabberService : IGrabberService
         ShopInfo shopInfo = objects.Cast<ShopInfo>().First();
         try
         {
-            await Task.Run(() => Ioc.Default.GetService<IScriptShop>()!.Load(shopInfo.ID), token);
+            await Task.Run(() => _session.GetService<IScriptShop>()!.Load(shopInfo.ID), token);
             progress.Report($"Shop {shopInfo.Name} [{shopInfo.ID}] loaded.");
         }
         catch
@@ -345,7 +346,7 @@ public class GrabberService : IGrabberService
         return SellItemImpl(objects, progress, token);
     }
 
-    private static async Task BuyItemsImpl(IList<object>? objects, IProgress<string> progress, CancellationToken token)
+    private async Task BuyItemsImpl(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
         if (objects is null || objects.Count == 0)
         {
@@ -353,9 +354,9 @@ public class GrabberService : IGrabberService
             return;
         }
 
-        IDialogService dialogService = Ioc.Default.GetService<IDialogService>()!;
-        IScriptShop shop = Ioc.Default.GetService<IScriptShop>()!;
-        IScriptPlayer player = Ioc.Default.GetService<IScriptPlayer>()!;
+        IDialogService dialogService = _session.GetService<IDialogService>()!;
+        IScriptShop shop = _session.GetService<IScriptShop>()!;
+        IScriptPlayer player = _session.GetService<IScriptPlayer>()!;
 
         List<ShopItem> items = objects.Cast<ShopItem>().ToList();
         if (items.Count == 1)
@@ -437,9 +438,9 @@ public class GrabberService : IGrabberService
         }
     }
 
-    private static async Task SellItemImpl(IList<object>? objects, IProgress<string> progress, CancellationToken token)
+    private async Task SellItemImpl(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        IDialogService dialogService = Ioc.Default.GetService<IDialogService>()!;
+        IDialogService dialogService = _session.GetService<IDialogService>()!;
         if (objects is null || objects.Count == 0)
         {
             progress.Report("No items found/selected.");
@@ -461,7 +462,7 @@ public class GrabberService : IGrabberService
         }
 
         progress.Report($"Selling {item.Name}, input quantity...");
-        IScriptShop shop = Ioc.Default.GetService<IScriptShop>()!;
+        IScriptShop shop = _session.GetService<IScriptShop>()!;
         try
         {
             int maxQty = item.Category == ItemCategory.Class ? 1 : item.Quantity;
@@ -496,7 +497,7 @@ public class GrabberService : IGrabberService
 
     public async Task SellAllItems(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        IDialogService dialogService = Ioc.Default.GetService<IDialogService>()!;
+        IDialogService dialogService = _session.GetService<IDialogService>()!;
         if (objects is null || objects.Count == 0)
         {
             progress.Report("No items found/selected.");
@@ -514,7 +515,7 @@ public class GrabberService : IGrabberService
             dialogService.ShowMessageBox("Cannot sell equipped item.", "Sell item");
             return;
         }
-        IScriptShop shop = Ioc.Default.GetService<IScriptShop>()!;
+        IScriptShop shop = _session.GetService<IScriptShop>()!;
         try
         {
             int quantity = item.Category == ItemCategory.Class ? 1 : item.Quantity;
@@ -531,12 +532,12 @@ public class GrabberService : IGrabberService
 
     public async Task EquipItems(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        await DefaultItemBaseTask("Equipping", Ioc.Default.GetService<IScriptInventory>()!.EquipItem, objects, progress, token);
+        await DefaultItemBaseTask("Equipping", _session.GetService<IScriptInventory>()!.EquipItem, objects, progress, token);
     }
 
     public async Task InvToBank(IList<object>? objects, IProgress<string> progress, CancellationToken token)
     {
-        await DefaultItemBaseTask("Banking", id => Ioc.Default.GetService<IScriptInventory>()!.ToBank(id), objects, progress, token);
+        await DefaultItemBaseTask("Banking", id => _session.GetService<IScriptInventory>()!.ToBank(id), objects, progress, token);
     }
 
     public async Task DefaultItemBaseTask(string identifier, Action<int> action, IList<object>? objects, IProgress<string> progress, CancellationToken token)

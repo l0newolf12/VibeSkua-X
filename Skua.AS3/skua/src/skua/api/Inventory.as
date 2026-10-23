@@ -21,7 +21,8 @@ public class Inventory {
 
     public static function inventoryMiscSlots():int {
         var cat:* = categories();
-        return cat == null ? 0 : cat.MISC_SLOTS;
+        // InvCat.isFullFor uses the avatar's capacity for both bag and misc pools.
+        return cat == null ? 0 : int(Main.instance.game.world.myAvatar.objData.iBagSlots);
     }
 
     public static function inventoryMiscUsedSlots():int {

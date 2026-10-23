@@ -19,3 +19,19 @@ Read [docs/PROJECT.md](docs/PROJECT.md) for project goals, agreed architecture, 
 Preserve existing Skua script compatibility. Validate relevant script-facing changes with representative scripts and discuss any required compatibility break before implementing it.
 
 Use [README.md](README.md) for build and verification commands. Run checks appropriate to the change.
+
+Prefer automated headless tests for shell behavior and targeted native checks for Windows/Flash integration over desktop automation. Run the native checks for changes to window chrome; headless layout tests cannot verify native resizing.
+
+## UI development and reference sources
+
+For UI work, consult `references/Avalonia-Source/`, `references/Avalonia-Docs/`, `references/Avalonia-Samples/`, and `references/FluentAvalonia/` before guessing at framework behavior or introducing a platform workaround. For game-related work requiring source-level information, consult `references/decompiled game/` and trace the relevant client code. Treat decompiled output as a game-version snapshot; distinguish client behavior from assumptions about server behavior.
+
+Use [docs/REFERENCES.md](docs/REFERENCES.md) to locate relevant files. Reference snapshots are Git-ignored research material; keep them separate from application code and build dependencies. Search them explicitly with `rg --no-ignore`, scoped to the relevant folder.
+
+Use `Directory.Packages.props` as the authority for dependency versions. Check source, docs, and sample APIs against those versions before adopting them; see the reference guide for snapshot versions. Distinguish Avalonia's built-in Fluent theme from the FluentAvalonia library used by this app.
+
+Keep the existing CommunityToolkit.Mvvm approach for view models and commands, and use typed compiled bindings with `x:DataType`. Adapt samples to this project's stack instead of adding ReactiveUI or changing themes just to reproduce an example.
+
+Keep WinForms/ActiveX creation and disposal on the STA UI thread, and marshal background access to Avalonia controls through their UI dispatcher. Account for deferred layout, native-host sizing, and destruction; use bounded readiness checks in native tests.
+
+Let `NativeControlHost` manage native attachment and sizing. Detaching a host can destroy its game control; verify session ownership and survival when changing navigation or account tabs. Native Flash occupies a separate native surface: verify menus, dialogs, and overlays against the real hosted control rather than assuming Avalonia z-order will cover it.

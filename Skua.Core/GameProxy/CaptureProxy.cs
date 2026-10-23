@@ -40,7 +40,7 @@ public partial class CaptureProxy : ObservableRecipient, ICaptureProxy
     private TcpClient? _client;
     private int _listenPort = DefaultPort;
 
-    public CaptureProxy(IDiagnosticsService diagnostics)
+    public CaptureProxy(IDiagnosticsService diagnostics) : base(SessionServices.CurrentWeak)
     {
         _diagnostics = diagnostics;
     }

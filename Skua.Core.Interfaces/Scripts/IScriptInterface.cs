@@ -37,7 +37,16 @@ public interface IScriptInterface
     /// <summary>
     /// Static instance of the current <see cref="IScriptInterface"/>.
     /// </summary>
-    static IScriptInterface Instance { get; protected set; }
+    private static IScriptInterface? _legacyInstance;
+    static IScriptInterface Instance
+    {
+        get => ScriptSessionContext.Current is { } session ? session.Bot! : _legacyInstance!;
+        protected set
+        {
+            if (ScriptSessionContext.Current is { } session) session.Bot = value;
+            else _legacyInstance = value;
+        }
+    }
 
     /// <summary>
     /// Class for Flash operations.

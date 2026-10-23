@@ -52,5 +52,22 @@ if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $outputPath)) {
 }
 
 $output = Get-Item -LiteralPath $outputPath
+function Get-SourceHash([string]$path) {
+    $text = [IO.File]::ReadAllText($path).Replace("`r`n", "`n").Replace("`r", "`n")
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try { ([BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($text)))).Replace('-', '') }
+    finally { $sha.Dispose() }
+}
+$sourceHashes = [ordered]@{}
+Get-ChildItem -LiteralPath $sourcePath -Filter '*.as' -Recurse | Sort-Object FullName | ForEach-Object {
+    $relativePath = $_.FullName.Substring($sourcePath.Length + 1).Replace('\', '/')
+    $sourceHashes[$relativePath] = Get-SourceHash $_.FullName
+}
+[ordered]@{
+    TargetPlayer = '28.0'
+    SourceHashFormat = 'UTF8 text with LF line endings'
+    SwfSha256 = (Get-FileHash -LiteralPath $outputPath -Algorithm SHA256).Hash
+    Sources = $sourceHashes
+} | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $scriptRoot 'skua.swf.manifest.json') -Encoding UTF8
 Write-Host "AS3 game content built: $($output.FullName) ($($output.Length) bytes)" -ForegroundColor Green
 exit 0

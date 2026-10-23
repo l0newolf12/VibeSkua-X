@@ -396,6 +396,9 @@ ehthumbs.db
 .claude/
 .cursor/
 
+# Local reference sources and decompiled game files
+/references/
+
 # Temporary and diagnostic crash files
 crash*.txt
 skua_global_*.txt

@@ -11,6 +11,7 @@ namespace Skua.Core.Scripts;
 
 public partial class ScriptServers : ObservableRecipient, IScriptServers
 {
+    private readonly SessionServices _session = new();
     public ScriptServers(
         Lazy<IFlashUtil> flash,
         Lazy<IScriptPlayer> player,
@@ -18,7 +19,7 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
         Lazy<IScriptOption> options,
         Lazy<IScriptBotStats> stats,
         Lazy<IScriptManager> manager,
-        Lazy<ILogService> logger)
+        Lazy<ILogService> logger) : base(SessionServices.CurrentWeak)
     {
         _lazyFlash = flash;
         _lazyPlayer = player;
@@ -75,7 +76,7 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
     private void _logout()
     {
         IsIntentionalLogout = true;
-        CommunityToolkit.Mvvm.Messaging.StrongReferenceMessenger.Default.Send<Skua.Core.Messaging.LogoutRequestedMessage, int>(new(), (int)Skua.Core.Messaging.MessageChannels.GameEvents);
+        _session.Strong.Send<Skua.Core.Messaging.LogoutRequestedMessage, int>(new(), (int)Skua.Core.Messaging.MessageChannels.GameEvents);
         DisconnectToLogin();
     }
 
@@ -372,10 +373,10 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
         bool autoRelogSwitch = Options.AutoRelogin;
         Options.AutoRelogin = false;
         ReloginLog($"Relogging using IP {ip}.");
-        StrongReferenceMessenger.Default.Send<LogoutRequestedMessage, int>(new(), (int)MessageChannels.GameEvents);
+        _session.Strong.Send<LogoutRequestedMessage, int>(new(), (int)MessageChannels.GameEvents);
 
         Thread.Sleep(2000);
-        StrongReferenceMessenger.Default.Send<LogoutMessage, int>((int)MessageChannels.GameEvents);
+        _session.Strong.Send<LogoutMessage, int>((int)MessageChannels.GameEvents);
         DisconnectForRelogin();
 
         Stats.Relogins++;
@@ -425,8 +426,8 @@ public partial class ScriptServers : ObservableRecipient, IScriptServers
         Options.AutoRelogin = false;
         ReloginLog($"Relogging on server {server.Name} [{server.PlayerCount}/{server.MaxPlayers}].");
 
-        StrongReferenceMessenger.Default.Send<LogoutRequestedMessage, int>(new(), (int)MessageChannels.GameEvents);
-        StrongReferenceMessenger.Default.Send<LogoutMessage, int>((int)MessageChannels.GameEvents);
+        _session.Strong.Send<LogoutRequestedMessage, int>(new(), (int)MessageChannels.GameEvents);
+        _session.Strong.Send<LogoutMessage, int>((int)MessageChannels.GameEvents);
         DisconnectForRelogin();
         Stats.Relogins++;
 
