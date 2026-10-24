@@ -20,9 +20,11 @@ internal static class Program
         {
             string artifacts = Path.GetFullPath("artifacts/shell-tests");
             Directory.CreateDirectory(artifacts);
+            if (args.Contains("--empty-tab-shortcuts")) return UiRegressionChecks.EmptyShortcuts();
             if (!args.Contains("--native-worker")) As3BuildChecks.Run();
             if (args.Contains("--native-worker")) return NativeSmoke.Run(artifacts, args.Contains("--missing-swf"));
             if (args.Contains("--native")) return RunNativeProcess(artifacts);
+            UiRegressionChecks.RunShortcutWorker();
             FlashChecks.Run();
             RunHeadless(artifacts).GetAwaiter().GetResult();
             return 0;
@@ -119,9 +121,9 @@ internal static class Program
                 viewModel.SelectedTab!.Session.Messenger.Send(new FlashRuntimeFailedMessage(new Exception("Test runtime failure")));
                 Dispatcher.UIThread.RunJobs();
                 Check(!viewport.IsVisible, "Viewport remained visible after a runtime error.");
-                Check(window.FindControl<StackPanel>("GameErrorPanel")!.IsVisible, "Runtime error was not shown.");
+                Check(window.FindControl<Grid>("GameErrorPanel")!.IsVisible, "Runtime error was not shown.");
                 Check(window.FindControl<TextBlock>("GameErrorMessage")!.Text!.Contains("Test runtime failure"), "Error binding did not update.");
-                Check(window.FindControl<TextBlock>("StatusText")!.Text == "Game unavailable", "Title-bar status did not update.");
+                Check(((string?)ToolTip.GetTip(window.FindControl<DropDownButton>("GameListButton")!))?.Contains("Client: Game unavailable") == true, "Game-list status tooltip did not update.");
                 Console.WriteLine("PASS: runtime error and status bindings.");
 
                 EventHandler<WindowClosingEventArgs> cancel = (_, e) => e.Cancel = true;
@@ -139,6 +141,8 @@ internal static class Program
         await session.Dispatch(() => TabChecks.RunHeadless(artifacts), CancellationToken.None);
         await session.Dispatch(() => ToolTipChecks.RunHeadless(), CancellationToken.None);
         await session.Dispatch(() => SharedChromeChecks.RunHeadless(artifacts), CancellationToken.None);
+        await session.Dispatch(() => UiRegressionChecks.RunHeadless(artifacts), CancellationToken.None);
+        await session.Dispatch(() => ShellPolishChecks.RunHeadless(artifacts), CancellationToken.None);
     }
 
     private static void CheckSharedStyles(ShellWindow window)

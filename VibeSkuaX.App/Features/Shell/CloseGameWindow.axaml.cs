@@ -10,7 +10,8 @@ public partial class CloseGameWindow : Window
     internal CloseGameWindow(string label)
     {
         InitializeComponent();
-        CloseMessage.Text = $"Close {label}? This ends its game session. You will need to log in again to play.";
+        CloseGameName.Text = label;
+        CloseMessage.Text = "This ends its game session. You will need to log in again to play.";
         Opened += (_, _) => CancelGameClose.Focus();
     }
 

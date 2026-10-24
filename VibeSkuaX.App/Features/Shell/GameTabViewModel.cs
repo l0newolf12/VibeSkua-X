@@ -33,7 +33,15 @@ public sealed partial class GameTabViewModel : ObservableObject, IDisposable
         GameSessionState.Failed => "Game unavailable",
         _ => "Game closed"
     };
-    public string AccessibleName => $"{Label}: {Status}";
+    public string ConnectionStatus => Session.IsConnected switch
+    {
+        true => "Connected",
+        false => "Not connected",
+        _ => HasError || Session.State == GameSessionState.Disposed ? "Not connected" : "Not checked"
+    };
+    public string AccessibleName => $"{Label}: {Status} · {ConnectionStatus}";
+    public string StatusToolTip => $"{Label}\nClient: {Status}\nConnection: {ConnectionStatus}";
+    public string MenuLabel => $"{Label} - {Status}";
 
     [RelayCommand(CanExecute = nameof(HasError))]
     private void Retry()
@@ -53,16 +61,22 @@ public sealed partial class GameTabViewModel : ObservableObject, IDisposable
     private void IdentityChanged()
     {
         OnPropertyChanged(nameof(Label));
+        OnPropertyChanged(nameof(ConnectionStatus));
         OnPropertyChanged(nameof(AccessibleName));
+        OnPropertyChanged(nameof(StatusToolTip));
+        OnPropertyChanged(nameof(MenuLabel));
     }
 
     private void StateChanged(GameSessionState state, string? error)
     {
         OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(ConnectionStatus));
         OnPropertyChanged(nameof(HasError));
         OnPropertyChanged(nameof(IsLoading));
         OnPropertyChanged(nameof(ErrorMessage));
         OnPropertyChanged(nameof(AccessibleName));
+        OnPropertyChanged(nameof(StatusToolTip));
+        OnPropertyChanged(nameof(MenuLabel));
         RetryCommand.NotifyCanExecuteChanged();
     }
 

@@ -49,6 +49,8 @@ internal sealed class GameSession : IDisposable
     public string? Error { get; private set; }
     public string? GameFile { get; private set; }
     public string? CharacterName { get; private set; }
+    public bool? IsConnected { get; private set; }
+    internal bool HadFocusOnFailure { get; private set; }
     public IntPtr ContainerHandle => _container is { IsHandleCreated: true } ? _container.Handle : IntPtr.Zero;
     internal FlashUtil? Runtime => _runtime;
     internal IMessenger Messenger => _messenger;
@@ -130,6 +132,7 @@ internal sealed class GameSession : IDisposable
     private void Fail(string error)
     {
         if (State is GameSessionState.Disposed or GameSessionState.Failed) return;
+        HadFocusOnFailure = _container?.ContainsFocus == true;
         ReleaseRuntime();
         SetState(GameSessionState.Failed, error);
     }
@@ -152,7 +155,8 @@ internal sealed class GameSession : IDisposable
     {
         if (State != GameSessionState.Ready || _runtime is null) return;
         string? name = null;
-        if (_runtime.Call<bool>("isLoggedIn"))
+        bool connected = _runtime.Call<bool>("isLoggedIn");
+        if (connected)
         {
             string json = _runtime.Call("getGameObject", "world.myAvatar.objData.strUsername");
             if (!string.IsNullOrWhiteSpace(json))
@@ -162,13 +166,15 @@ internal sealed class GameSession : IDisposable
             }
         }
         if (string.IsNullOrWhiteSpace(name)) name = null;
-        if (name == CharacterName) return;
+        if (name == CharacterName && IsConnected == connected) return;
         CharacterName = name;
+        IsConnected = connected;
         CharacterNameChanged?.Invoke();
     }
 
     private void ReleaseRuntime()
     {
+        IsConnected = null;
         _identityTimer.Stop();
         _startup.Cancel();
         if (_runtime is not null)

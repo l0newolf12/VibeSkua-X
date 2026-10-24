@@ -13,6 +13,7 @@
   <Grid Name="ShellLayout" RowDefinitions="Auto,*">
     <controls:WindowTitleBar Name="WindowChrome" Grid.Row="0">
       <controls:WindowTitleBar.HeaderContent>
+        <Grid Name="AccountHeader" ColumnDefinitions="*,Auto">
         <ui:FATabView Name="AccountTabs" Classes="vsx-accounts"
                       TabItemsSource="{Binding Tabs}" SelectedItem="{Binding SelectedTab, Mode=TwoWay}"
                       AddTabButtonCommand="{Binding OpenGameCommand}" TabCloseRequested="TabCloseRequested"
@@ -27,16 +28,19 @@
             </Border>
           </ui:FATabView.TabStripHeader>
           <ui:FATabView.TabStripFooter>
-            <Border Name="TitleDragArea" MinWidth="{StaticResource VsWidthTitleDrag}" Background="Transparent"
-                    chrome:WindowDecorationProperties.ElementRole="TitleBar">
-              <TextBlock Name="StatusText" Classes="vsx-status" Text="{Binding Status}"
-                         Margin="{StaticResource VsPaddingTitle}" TextTrimming="CharacterEllipsis"
-                         VerticalAlignment="Center" HorizontalAlignment="Right" />
-            </Border>
+              <Border Name="TitleDragArea" MinWidth="{StaticResource VsWidthTitleDrag}" Background="Transparent"
+                      chrome:WindowDecorationProperties.ElementRole="TitleBar">
+                <Border Width="{StaticResource VsSizeProgress}" Height="{StaticResource VsSizeProgress}"
+                        HorizontalAlignment="Right" Margin="{StaticResource VsMarginAfterIcon}">
+                  <ui:FAProgressRing Name="LoadingIndicator" Width="{StaticResource VsSizeProgress}" Height="{StaticResource VsSizeProgress}"
+                                     IsVisible="{Binding IsLoading}" IsActive="{Binding IsLoading}" IsIndeterminate="True"
+                                     Foreground="{DynamicResource VsBrushAccent}" AutomationProperties.AccessibilityView="Raw" />
+                </Border>
+              </Border>
           </ui:FATabView.TabStripFooter>
           <ui:FATabView.TabItemTemplate>
             <DataTemplate x:DataType="local:GameTabViewModel">
-              <ui:FATabViewItem Header="{Binding}" ToolTip.Tip="{Binding AccessibleName}"
+              <ui:FATabViewItem Header="{Binding}" ToolTip.Tip="{Binding StatusToolTip}" Loaded="TabItemLoaded"
                                 AutomationProperties.Name="{Binding AccessibleName}">
                 <ui:FATabViewItem.HeaderTemplate>
                   <DataTemplate x:DataType="local:GameTabViewModel">
@@ -52,15 +56,26 @@
             </DataTemplate>
           </ui:FATabView.TabItemTemplate>
         </ui:FATabView>
+          <DropDownButton Name="GameListButton" Grid.Column="1" Content="Games" Classes="vsx-game-list"
+                          IsEnabled="{Binding HasTabs}" ToolTip.Tip="{Binding GameListToolTip}"
+                          AutomationProperties.Name="{Binding GameListDescription}" AutomationProperties.LiveSetting="Polite"
+                          chrome:WindowDecorationProperties.ElementRole="User" />
+        </Grid>
       </controls:WindowTitleBar.HeaderContent>
     </controls:WindowTitleBar>
-    <StackPanel Name="GameErrorPanel" Grid.Row="1" IsVisible="{Binding HasError}" HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="{StaticResource VsWidthMessage}" Margin="{StaticResource VsMarginMessage}" Spacing="{StaticResource VsSpace3}">
+    <Grid Name="GameErrorPanel" Grid.Row="1" RowDefinitions="Auto,*,Auto" IsVisible="{Binding HasError}" VerticalAlignment="Center" MaxWidth="{StaticResource VsWidthMessage}" Margin="{StaticResource VsMarginMessage}" RowSpacing="{StaticResource VsSpace3}">
       <TextBlock Text="Game unavailable" Classes="vsx-heading" TextAlignment="Center" />
-      <TextBlock Name="GameErrorMessage" Text="{Binding ErrorMessage}" Classes="vsx-body" TextWrapping="Wrap" TextAlignment="Center" />
-      <Button Name="RetryGameButton" Content="Retry" Command="{Binding SelectedTab.RetryCommand}" Classes="vsx-dialog-action" HorizontalAlignment="Center" />
-    </StackPanel>
+      <ScrollViewer Name="ErrorDetailsScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+        <SelectableTextBlock Name="GameErrorMessage" Text="{Binding ErrorMessage}" Classes="vsx-body" TextWrapping="Wrap" TextAlignment="Center" />
+      </ScrollViewer>
+      <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Spacing="{StaticResource VsSpace2}">
+        <Button Name="RetryGameButton" Content="Retry" Command="{Binding SelectedTab.RetryCommand}" Classes="vsx-dialog-action" />
+        <Button Name="CopyDiagnosticsButton" Content="Copy details" Click="CopyDiagnosticsClicked" Classes="vsx-dialog-action" />
+      </StackPanel>
+    </Grid>
     <StackPanel Name="NoGamesPanel" Grid.Row="1" IsVisible="{Binding HasNoTabs}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{StaticResource VsSpace4}">
       <TextBlock Text="No games open" Classes="vsx-heading" />
+      <TextBlock Name="EmptyStateHelp" Text="Open a game, then log in. Use + to open another." Classes="vsx-body" TextWrapping="Wrap" TextAlignment="Center" />
       <Button Name="OpenGameButton" Content="Open game" Command="{Binding OpenGameCommand}" Classes="vsx-dialog-action" HorizontalAlignment="Center" />
     </StackPanel>
   </Grid>

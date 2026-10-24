@@ -8,6 +8,7 @@
   <Grid RowDefinitions="Auto,*">
     <controls:WindowTitleBar Name="WindowChrome" />
     <StackPanel Grid.Row="1" Margin="{StaticResource VsMarginMessage}" Spacing="{StaticResource VsSpace4}">
+      <TextBlock Name="CloseGameName" Classes="vsx-dialog-game" TextWrapping="Wrap" />
       <TextBlock Name="CloseMessage" Classes="vsx-body" TextWrapping="Wrap" />
       <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="{StaticResource VsSpace2}">
         <Button Name="CancelGameClose" Classes="vsx-dialog-action" Content="Cancel" IsDefault="True" IsCancel="True" Click="CancelClicked" />

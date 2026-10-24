@@ -22,10 +22,15 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         OpenGame();
     }
 
-    public string Title => "VibeSkua X";
+    public string Title => SelectedTab is { } tab ? $"{tab.Label} - VibeSkua X" : "VibeSkua X";
     public ReadOnlyObservableCollection<GameTabViewModel> Tabs { get; }
     public bool HasNoTabs => _tabs.Count == 0;
     public string Status => SelectedTab?.Status ?? "No games open";
+    public string StatusDescription => SelectedTab?.AccessibleName ?? Status;
+    public string GameListDescription => $"Open games ({_tabs.Count}). {StatusDescription}";
+    public string GameListToolTip => $"Open games ({_tabs.Count})\n{SelectedTab?.StatusToolTip ?? "No games open"}";
+    public bool HasTabs => _tabs.Count > 0;
+    public bool IsLoading => SelectedTab?.IsLoading == true;
     public string? ErrorMessage => SelectedTab?.ErrorMessage;
     public bool HasError => SelectedTab?.HasError == true;
 
@@ -45,14 +50,19 @@ public partial class ShellViewModel : ObservableObject, IDisposable
 
     private void SelectedStateChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(GameTabViewModel.Status)) NotifySelectedState();
+        if (e.PropertyName is nameof(GameTabViewModel.AccessibleName)) NotifySelectedState();
     }
 
     private void NotifySelectedState()
     {
         OnPropertyChanged(nameof(Status));
+        OnPropertyChanged(nameof(Title));
+        OnPropertyChanged(nameof(StatusDescription));
+        OnPropertyChanged(nameof(IsLoading));
         OnPropertyChanged(nameof(ErrorMessage));
         OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(GameListDescription));
+        OnPropertyChanged(nameof(GameListToolTip));
     }
 
     [RelayCommand]
@@ -63,6 +73,7 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         _tabs.Add(tab);
         SelectedTab = tab;
         OnPropertyChanged(nameof(HasNoTabs));
+        OnPropertyChanged(nameof(HasTabs));
     }
 
     // Called only after the view has obtained confirmation for this exact tab.
@@ -75,6 +86,8 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         _tabs.RemoveAt(index);
         tab.Dispose();
         OnPropertyChanged(nameof(HasNoTabs));
+        OnPropertyChanged(nameof(HasTabs));
+        NotifySelectedState();
     }
 
     public void Dispose()
@@ -85,5 +98,6 @@ public partial class ShellViewModel : ObservableObject, IDisposable
         foreach (var tab in _tabs) tab.Dispose();
         _tabs.Clear();
         OnPropertyChanged(nameof(HasNoTabs));
+        OnPropertyChanged(nameof(HasTabs));
     }
 }

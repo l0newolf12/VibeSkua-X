@@ -22,7 +22,7 @@ Validation limits: the engine tests fake game/platform services; the live native
 
 ## Original findings
 
-## 1. Correct the Flash XML transport — P1
+## 1. Correct the Flash XML transport - P1
 
 **Evidence:** Executed a temporary probe against the actual [FlashUtil](../VibeSkuaX.Runtime.Windows/Flash/FlashUtil.cs) implementation, without creating an ActiveX control.
 
@@ -42,7 +42,7 @@ Validation limits: the engine tests fake game/platform services; the live native
 
 **Validation:** Round-trip primitives, nested objects/arrays, empty values, XML-escaped strings, sparse/indexed arrays, and the actual Skua callback wrapper. Test at least `en-US` and `fr-FR`. Include typed return conversion and existing JSON/string callback shapes.
 
-## 2. Preserve cancellation through typed Flash calls — P1
+## 2. Preserve cancellation through typed Flash calls - P1
 
 **Evidence:** A probe supplied a cancelled `IScriptManager` to the actual `FlashUtil`, on a thread named `Script Thread`.
 
@@ -57,7 +57,7 @@ The cancellation check in the non-generic overload is outside its catch block, b
 
 **Validation:** Cancelled generic and non-generic calls both propagate cancellation, while ordinary missing/invalid values preserve the agreed fallback behavior. Exercise a representative polling script's stop path.
 
-## 3. Align inventory capacity access with the supplied game — P1
+## 3. Align inventory capacity access with the supplied game - P1
 
 **Evidence:** [Inventory.inventoryMiscSlots](../Skua.AS3/skua/src/skua/api/Inventory.as) returns `cat.MISC_SLOTS`. A search of the supplied `references/decompiled game/Game4000r5/scripts/` found no `MISC_SLOTS` definition. In that snapshot, `InvCat.isFullFor` accepts the capacity as an argument, and `World.isHouseOrRegularFull` passes `myAvatar.objData.iBagSlots` to it.
 
@@ -67,7 +67,7 @@ The cancellation check in the non-generic overload is outside its catch block, b
 
 **Validation:** Add fixtures for category-aware inventory capacity, partly filled stacks, miscellaneous versus bag pools, and bank swaps using the supplied `InvCat`/`World` behavior. Keep evidence tied to the snapshot; this does not establish server-side acceptance or behavior in another game version.
 
-## 4. Separate call failures from fatal session failures — P1
+## 4. Separate call failures from fatal session failures - P1
 
 **Evidence:** `FlashUtil.Call` publishes `FlashErrorMessage` for conversion or COM-call errors, except for its `isKicked` special case. [FlashViewport.StartFlash](../VibeSkuaX.App/Controls/FlashViewport.cs) subscribes to every such message and calls `Fail`, which tells the user Flash could not start and then disposes the entire runtime.
 
@@ -77,7 +77,7 @@ When scripting is connected, a value conversion error or an unavailable game pro
 
 **Validation:** Inject a recoverable failed call into a loaded session and prove the same Flash control remains alive and usable. Separately verify that a genuinely fatal initialization failure still disposes everything and displays the appropriate error.
 
-## 5. Handle asynchronous game-load failures — P1
+## 5. Handle asynchronous game-load failures - P1
 
 **Evidence:** The version request and game SWF loader in [Main.as](../Skua.AS3/skua/src/skua/Main.as) register completion handlers, but no I/O/security error handlers for those requests. Version JSON parsing is also unguarded. The viewport's production startup has no bounded load deadline; the 35-second deadline exists only in the native test.
 
@@ -85,7 +85,7 @@ When scripting is connected, a value conversion error or an unavailable game pro
 
 **Validation:** Version endpoint unavailable, malformed response, unavailable SWF, and close while loading. Each case should leave an actionable error or a cleanly closed session, without an indefinite loading state. Rebuild the bundled SWF when changing the AS3 implementation; reviewing the source alone does not verify the shipped binary's behavior.
 
-## 6. Resolve session ownership before detachable tabs — P2
+## 6. Resolve session ownership before detachable tabs - P2
 
 **Evidence:** In local Avalonia 12.1.1 source, `NativeControlHost` queues destruction when detached and can create a native control again on later attachment. Our `DestroyNativeControlCore` calls permanent `FlashViewport.Dispose`, and its next `CreateNativeControlCore` throws once `_disposed` is true.
 
@@ -95,7 +95,7 @@ This is compatible with the current single-window, single-use viewport. It is a 
 
 **Validation:** Switch away and back after Avalonia's deferred destruction work has had time to run. Verify the intended session survives, or that deliberate recreation succeeds without disposed-control access, duplicate startup, or stale callbacks. Also test menus/dialogs over real Flash because its native surface is absent from headless renders.
 
-## 7. Audit engine isolation before multi-account execution — P2
+## 7. Audit engine isolation before multi-account execution - P2
 
 **Evidence:** The viewport already owns a private weak messenger, but [AddCommonServices](../Skua.Core/AppStartup/Services.cs) registers process-default weak/strong messengers. [ScriptInterface](../Skua.Core/Scripts/ScriptInterface.cs) directly assigns `StrongReferenceMessenger.Default`, and `ScriptManager` uses that default messenger and `Ioc.Default` at several execution/compilation points.
 

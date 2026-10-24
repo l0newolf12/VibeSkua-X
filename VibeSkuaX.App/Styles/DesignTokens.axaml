@@ -56,13 +56,18 @@
   <x:Double x:Key="VsSizeBrand">22</x:Double>
   <x:Double x:Key="VsWidthMessage">520</x:Double>
   <x:Double x:Key="VsSizeStatusDot">6</x:Double>
+  <x:Double x:Key="VsSizeProgress">16</x:Double>
   <x:Double x:Key="VsWidthAuto">90</x:Double>
   <x:Double x:Key="VsWidthAccountTab">132</x:Double>
   <x:Double x:Key="VsHeightTabDivider">14</x:Double>
   <x:Double x:Key="VsWidthTitleDrag">160</x:Double>
+  <x:Double x:Key="VsWidthGameListButton">96</x:Double>
+  <x:Double x:Key="VsWidthGameList">320</x:Double>
   <x:Double x:Key="VsWidthConfirmation">420</x:Double>
   <x:Double x:Key="VsWidthDialogAction">112</x:Double>
   <Thickness x:Key="VsPaddingAccountTab">8,3,4,3</Thickness>
   <Thickness x:Key="VsBorderTabIndicator">0,0,0,2</Thickness>
   <Thickness x:Key="VsPaddingTabAdd">3,0,0,2</Thickness>
+  <Thickness x:Key="VsPaddingTabScrollDecrease">8,0,3,2</Thickness>
+  <Thickness x:Key="VsPaddingTabScrollIncrease">3,0,8,2</Thickness>
 </ResourceDictionary>

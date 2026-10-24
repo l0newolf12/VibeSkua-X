@@ -79,12 +79,15 @@ The spacing scale is **4, 8, 12, 16, 24, 32** DIPs: `VsSpace1`, `VsSpace2`, `VsS
 | `VsHeightControl` | 32 | Compact app-specific command height |
 | `VsSizeBrand` | 22 | Current badge width/height |
 | `VsSizeStatusDot` | 6 | Online/running indicator |
+| `VsSizeProgress` | 16 | Loading indicator in the reserved title/status area |
 | `VsWidthAuto` | 90 | Stable Auto control width |
 | `VsWidthAccountTab` | 132 | Fixed account-tab width; overflow scrolls |
 | `VsHeightTabDivider` | 14 | Short, vertically centered tab separator |
 | `VsWidthTitleDrag` | 160 | Minimum reserved drag/status area after the add button |
+| `VsWidthGameListButton` | 96 | Fixed Games dropdown width; height uses `VsHeightControl` |
+| `VsWidthGameList` | 320 | Fixed open-games menu width; long labels wrap |
 | `VsWidthConfirmation` | 420 | Owned tab-close confirmation width |
-| `VsWidthDialogAction` | 112 | Fixed width for confirmation, retry, and empty-state actions |
+| `VsWidthDialogAction` | 112 | Fixed width for confirmation, retry, copy-details, and empty-state actions |
 | `VsWidthMessage` | 520 | Maximum central message width |
 
 Composite resources preserve consistent insets: `VsPaddingTitle` = `12,0,16,0`, `VsMarginAfterIcon` = `8,0,0,0`, and `VsMarginMessage` = `32`.
@@ -92,6 +95,8 @@ Composite resources preserve consistent insets: `VsPaddingTitle` = `12,0,16,0`, 
 `VsPaddingAccountTab` = `8,3,4,3` applies to both selected and inactive tab headers. `VsBorderTabIndicator` = `0,0,0,2` reserves the same bottom-border space in every state; selection changes its brush to cyan. Tab text remains regular weight in every state. Both library tab-width limits use `VsWidthAccountTab`, retaining readable neutral labels and the library's scrolling behavior when tabs no longer fit.
 
 The add-button host stretches to the title row. `VsPaddingTabAdd` = `3,0,0,2` keeps the library's 3-DIP horizontal gap and reserves the same 2-DIP bottom indicator area as tab content. Dividers also reserve `VsBorderTabIndicator` as their margin. This aligns tab close buttons, dividers, and add on one center line without changing their interaction sizes.
+
+Overflow scroll hosts also stretch. `VsPaddingTabScrollDecrease` = `8,0,3,2` and `VsPaddingTabScrollIncrease` = `3,0,8,2` retain the pinned template's horizontal gaps while reserving that same indicator area. Both arrows share the close/divider/add center line. Bind tab backgrounds, foregrounds, selection silhouettes/indicators, and dividers directly to dynamic app brush resources; static resource aliases do not track replacement of their source brush.
 
 Do not force library controls to the app-specific height/radius when that breaks their template, content, or accessibility. Use the library's supported layout properties and check the real result. Let Windows/Avalonia own the window frame and outer shape.
 
@@ -124,6 +129,20 @@ The game remains the dominant area, with a compact account/title row and one too
 
 Account tabs are implemented with the pinned `FATabView` template and shared style overrides. Its add button stays after the tab strip, and its footer reserves the drag/status region. Loaded games use a cyan dot, starting/loading games a secondary-text dot, and failed games a danger dot; accessible tab names and tooltips include textual status. Loaded means client readiness. Labels begin with neutral game numbers and update to the connected character name; label changes truncate within the existing tab width. Confirmation uses an owned native window with Cancel as the initial/default action and Escape to cancel. Retry and Open game reuse the fixed action size.
 
+The add action's tooltip and accessible name both say **Open game**. Each tab-close button has an explicit **Close {game label}** accessible name that follows identity changes and newly realized tabs. Ctrl+Tab, Ctrl+Shift+Tab, and Ctrl+F4 are handled over the app's collection, including zero/one tabs and unrealized overflow items. Keyboard navigation retains tab-strip focus; pointer selection returns to the game. Dismissing confirmation restores the originating tab/game focus policy; closing the final game focuses Open game. These are shell shortcuts, not global hotkeys while Flash owns native keyboard input.
+
+The tab footer remains a stretchy native drag region with a real 160-DIP minimum and a reserved 16-DIP `FAProgressRing` slot at its right edge. The pinned FATabView can overwrite its footer column minimum with a zero constrained DesiredSize during initial overflow; the shell enforces the shared minimum above that local assignment when its template is applied. Do not replace the library template or let an overflowing footer cover tab/add/menu input.
+
+A separate, fixed 96-by-32-DIP **Games** dropdown sits immediately before the caption controls, with the standard 8-DIP left margin. It replaces the old visible selected-game status. Keep it outside FATabView's measured strip so library width calculations cannot push it beneath captions. Its FluentAvalonia `FAMenuFlyout` uses a native popup above Flash, a fixed 320-DIP width, wrapping full labels, textual client status, and a checkmark for the current game. It lists every owner, including tabs outside the viewport. Selecting a row reveals the existing tab without replacing its session. With no games the dropdown is disabled; the central empty state explains opening a game and using +.
+
+The Games button tooltip and each tab/menu-item tooltip separate **Client** readiness from **Connection** state. Ready means **Game loaded**; connection is **Not checked** until polled, then **Connected** or **Not connected**. A connection does not imply character data is ready. The button's accessible name includes count, selected label, readiness, and connection, and is the single polite live region. The pinned button peer needs explicit Name-change forwarding; error details do not duplicate announcements, and unchanged polls do not repeat them. The loading ring remains indeterminate and stops on readiness/failure without moving controls.
+
+The Windows title follows the selected character/game label (`Game 1 - VibeSkua X` before identity is available), with `VibeSkua X` when empty. Shared `Window.vsx-shell[IsActive=False]` styles soften the title-bar border to `VsBrushSurface` and title/tab text to `VsBrushTextSecondary`; active windows retain the baseline colors. Use the actual IsActive property, not an unsupported :active pseudo-class. Keep geometry, selection indicators, status colors, and caption hover behavior unchanged.
+
+After a selected game fails, focus Retry if the game owned native focus or the active shell has no other focused control. Preserve tab/menu navigation, confirmation focus, and other active windows. Return Windows keyboard focus to the shell before focusing Retry; Avalonia logical focus alone cannot move it out of WinForms. Keyboard menu selection returns to the chosen header; Escape returns to the Games opener, while pointer selection returns to the game or its recovery action.
+
+The close confirmation gives the current game label a separate `vsx-dialog-game` line: reading size 14, semibold, primary foreground. Its explanatory text and safe default Cancel behavior remain. Error UI uses a bounded Grid with scrollable/selectable details and a visible action row. Retry and Copy details use the same fixed 112-by-32-DIP action size; Copied/Copy failed feedback stays inside that size. Selected diagnostic text uses `VsBrushAccent` behind `VsBrushOnAccent` for readable contrast.
+
 The library updates adjacent separator opacity locally. Shared styles additionally hide each selected/hovered tab's own separator through visibility, because template opacity setters cannot override the library's local value. Tests cover both separator rules and stable tab/add positions. The toolbar remains future work.
 
 ## Using and changing the system
@@ -131,6 +150,8 @@ The library updates adjacent separator opacity locally. Shared styles additional
 ### Shared window title bar
 
 Use `Controls/WindowTitleBar` for all new app windows. The `vsx-shell` window class supplies the common palette and `BorderOnly`/extended-client-area native frame configuration. Put the title bar in an Auto-height first row and window content below it. It displays the containing window's `Title` and brand mark, with caption actions following `CanMinimize` and `CanMaximize`. Fixed modal dialogs set both capabilities false and keep only Close. A title-bar close uses the window's normal close path, including closing-event cancellation and default dialog result.
+
+The same window style supplies `Assets/App.ico`; the executable embeds that icon too. Its cyan rounded badge and dark Segoe UI bold X match the existing title-bar mark. Checked-in ICO frames cover 16, 20, 24, 32, 40, 48, 64, 128, and 256 pixels. `Assets/App.svg` records the vector source; `tools/Generate-AppIcon.ps1` reads the established dimensions/colors/font from `DesignTokens.axaml` and regenerates both using the installed Windows font. Normal builds consume the checked-in files.
 
 ```xml
 <Window xmlns="https://github.com/avaloniaui"

@@ -11,6 +11,11 @@ window, using Avalonia's native-control hosting support. The user has confirmed
 that it displays the game's login screen. Startup opens one game; **+** opens another.
 Switch tabs to change games. Tab close asks for confirmation, failed games offer
 **Retry**, and closing the last tab leaves an **Open game** action. Login is manual.
+The top-right **Games** dropdown lists every open game, including hidden tabs. Its
+tooltip separates client readiness and connection state; the Windows title follows
+the selected character. Inactive windows use quieter chrome, and the empty state
+explains the next step. Appropriate selected-game failures focus **Retry** without
+interrupting tab/menu navigation, confirmations, or another active window.
 
 Project goals, the agreed architecture, the first milestone, and the rough UI reference are documented in [docs/PROJECT.md](docs/PROJECT.md).
 
@@ -45,6 +50,17 @@ Run the desktop prototype:
 
 Game hosting requires the 64-bit CleanFlash ActiveX runtime. The game loads
 over the network. The shell displays an error if the Flash runtime cannot start.
+Long errors can be scrolled/selected, and **Copy details** copies the full error
+with app/game context. The title strip shows an indeterminate indicator while
+the selected game loads. Shell tab navigation supports Ctrl+Tab,
+Ctrl+Shift+Tab, and Ctrl+F4 while Avalonia controls have keyboard focus.
+
+The checked-in Windows icon matches the cyan X title-bar badge and contains
+16–256-pixel sizes. To regenerate the SVG/ICO from the existing Windows font:
+
+    .\tools\Generate-AppIcon.ps1
+
+Normal builds do not run this generator or require additional graphics tooling.
 
 BuildProject.bat runs the same build. QuestData.json, AdvancedSkills.json,
 the existing SWF, and native runtime binaries are retained. Rebuilding the SWF
@@ -90,6 +106,20 @@ also exercise the actual Flash XML codec under en-US and fr-FR, callback argumen
 shapes, typed/raw cancellation, and ordinary call fallbacks. Source/binary hashes
 detect stale bundled AS3 and inventory fixture SWFs. Run commands from the repository root.
 
+UI regression checks also run empty/single-tab shortcuts in a child process with
+a 15-second timeout, cycle through unrealized overflow tabs in both directions,
+exercise Ctrl+F4 and keyboard confirmation, inspect accessible close names and
+polite live-region Name events, and replace/restore tab brushes in active states.
+Long diagnostics must scroll while Retry and Copy details stay inside the minimum
+window size. Headless clipboard checks verify the full diagnostic text and stable
+Copied feedback; they do not alter the Windows clipboard. Loading activity,
+confirmation emphasis, shared icon frames, and overflow-arrow alignment are covered.
+Pressed tab headers must remain visible when dragged, including overflow and release
+outside the strip; subsequent selection, tab order, geometry, and session ownership are checked.
+Additional checks cover the Games menu's eleven-owner list, keyboard selection and
+Escape, live status, full names, empty guidance, titles, actual inactive styling,
+and minimum-width separation of tabs, drag area, dropdown, and captions.
+
 For a real Windows/Flash lifecycle check, with CleanFlash installed and network
 access available:
 
@@ -111,6 +141,13 @@ unavailable version data, malformed JSON, unavailable SWFs, the startup deadline
 and close while loading. Late callbacks must not revive failed/closed sessions.
 Two real clients must preserve their handles, runtime, and temporary client-state
 markers across native tab clicks, with only the selected game visible and focused.
+Dragging selected/inactive headers and releasing outside must preserve their visibility,
+selection response, both native game handles/runtimes, and those state markers.
+The actual Games popup must appear above Flash; pointer/keyboard selection and
+Escape must restore the appropriate focus. Native checks exercise activation of
+shell/auxiliary windows, Windows title updates, distinct readiness/connection
+tooltips, and keyboard activation of Retry after a focused-game failure. Failure
+during confirmation or while another window is active must preserve that focus.
 The actual tab-close confirmation must appear above Flash. Failure, retry, and
 confirmed close must leave the other game usable; application shutdown must also
 destroy an inactive live game. Fixture data checks character names and logout.
@@ -119,6 +156,12 @@ preserved game focus. They briefly move only the test-owned window onto a monito
 to avoid off-screen popup clamping, then restore its previous position.
 The actual confirmation's shared title bar is checked for native drag/close roles,
 immediate caption feedback, fixed-window behavior, and cancellation through Close.
+Native regression checks additionally preserve tab-strip focus through repeated
+keyboard game switches and confirmation cancellation, then verify pointer selection
+returns focus to Flash. Real fixture identity polls update close/status names without
+repeated announcements. Windows small/large window icons and the built executable's
+embedded icons are checked against the badge colors. Results include
+artifacts/shell-tests/native-ui-regressions.json.
 These checks do not log into accounts; real login continuity needs user verification.
 An AS3 fixture runs the production inventory bridge against the supplied
 Game4000r5 InvCat class, with stack, inventory-pool, and bank-swap cases.

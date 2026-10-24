@@ -16,15 +16,8 @@
       <Thickness x:Key="TabViewSelectedItemHeaderMargin">0</Thickness>
       <StaticResource x:Key="TabViewSelectedItemBorderThickness" ResourceKey="VsBorderTabIndicator" />
       <StaticResource x:Key="TabViewItemAddButtonContainerPadding" ResourceKey="VsPaddingTabAdd" />
-      <StaticResource x:Key="TabViewItemHeaderForeground" ResourceKey="VsBrushTextPrimary" />
-      <StaticResource x:Key="TabViewItemHeaderForegroundSelected" ResourceKey="VsBrushTextPrimary" />
-      <StaticResource x:Key="TabViewItemHeaderBackgroundSelected" ResourceKey="VsBrushSelected" />
-      <StaticResource x:Key="TabViewItemHeaderBackgroundPointerOver" ResourceKey="VsBrushHover" />
-      <StaticResource x:Key="TabViewItemHeaderBackgroundPressed" ResourceKey="VsBrushPressed" />
-      <StaticResource x:Key="TabViewItemSeparator" ResourceKey="VsBrushTabDivider" />
       <SolidColorBrush x:Key="TabViewBorderBrush" Color="Transparent" />
       <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent" />
-      <StaticResource x:Key="TabViewSelectedItemBorderBrush" ResourceKey="VsBrushAccent" />
     </Style.Resources>
     <Setter Property="Height" Value="{StaticResource VsHeightTitleBar}" />
     <Setter Property="Padding" Value="0" />
@@ -33,21 +26,47 @@
   <Style Selector="ui|FATabView.vsx-accounts /template/ Border#AddButtonHost">
     <Setter Property="VerticalAlignment" Value="Stretch" />
   </Style>
+  <!-- FluentAvalonia 3.1.0 enters :dragging even with dragging/reordering disabled.
+       Its template hides the header for a drag preview that never starts. -->
+  <Style Selector="ui|FATabView.vsx-accounts[CanDragTabs=False][CanReorderTabs=False] ui|FATabViewItem:dragging /template/ Grid#LayoutRoot">
+    <Setter Property="Opacity" Value="1" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ScrollViewer /template/ Border#ScrollDecreaseButtonContainer">
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Padding" Value="{StaticResource VsPaddingTabScrollDecrease}" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ScrollViewer /template/ Border#ScrollIncreaseButtonContainer">
+    <Setter Property="VerticalAlignment" Value="Stretch" />
+    <Setter Property="Padding" Value="{StaticResource VsPaddingTabScrollIncrease}" />
+  </Style>
   <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem /template/ Border#TabContainerBorder">
     <Setter Property="BorderThickness" Value="{StaticResource VsBorderTabIndicator}" />
     <Setter Property="BorderBrush" Value="Transparent" />
     <Setter Property="Margin" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
   </Style>
   <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem:selected /template/ Border#TabContainerBorder">
     <Setter Property="BorderBrush" Value="{DynamicResource VsBrushAccent}" />
+    <Setter Property="Background" Value="{DynamicResource VsBrushSelected}" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem:selected /template/ Path#SelectedBackgroundPath">
+    <Setter Property="Fill" Value="{DynamicResource VsBrushSelected}" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem:not(:selected):pointerover /template/ Border#TabContainerBorder">
+    <Setter Property="Background" Value="{DynamicResource VsBrushHover}" />
+  </Style>
+  <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem:not(:selected):pressed /template/ Border#TabContainerBorder">
+    <Setter Property="Background" Value="{DynamicResource VsBrushPressed}" />
   </Style>
   <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem /template/ ContentPresenter#ContentPresenter">
     <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextPrimary}" />
   </Style>
   <Style Selector="ui|FATabView.vsx-accounts ui|FATabViewItem /template/ Border#TabSeparator">
     <Setter Property="Height" Value="{StaticResource VsHeightTabDivider}" />
     <Setter Property="Margin" Value="{StaticResource VsBorderTabIndicator}" />
     <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Background" Value="{DynamicResource VsBrushTabDivider}" />
   </Style>
   <!-- The pinned library sets separator opacity locally; visibility preserves its
        adjacent-tab logic while also suppressing the hovered/selected tab itself. -->
@@ -56,6 +75,21 @@
   </Style>
   <Style Selector="Ellipse.vsx-game-state">
     <Setter Property="Fill" Value="{DynamicResource VsBrushAccent}" />
+  </Style>
+  <Style Selector="DropDownButton.vsx-game-list">
+    <Setter Property="Width" Value="{StaticResource VsWidthGameListButton}" />
+    <Setter Property="Height" Value="{StaticResource VsHeightControl}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="{StaticResource VsMarginAfterIcon}" />
+  </Style>
+  <Style Selector="ui|FAMenuFlyoutPresenter.vsx-game-list">
+    <Setter Property="Width" Value="{StaticResource VsWidthGameList}" />
+    <Setter Property="MaxWidth" Value="{StaticResource VsWidthMessage}" />
+  </Style>
+  <Style Selector="ui|FAMenuFlyoutPresenter.vsx-game-list ui|FAToggleMenuFlyoutItem /template/ TextBlock#TextBlock">
+    <Setter Property="TextTrimming" Value="None" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+    <Setter Property="FontSize" Value="{StaticResource VsTextBody}" />
   </Style>
   <Style Selector="Ellipse.vsx-game-state.loading">
     <Setter Property="Fill" Value="{DynamicResource VsBrushTextSecondary}" />
@@ -69,6 +103,7 @@
   </Style>
   <!-- Keep FluentAvalonia's control templates, focus adorners and native caption roles. -->
   <Style Selector="Window.vsx-shell">
+    <Setter Property="Icon" Value="/Assets/App.ico" />
     <Setter Property="WindowDecorations" Value="BorderOnly" />
     <Setter Property="ExtendClientAreaToDecorationsHint" Value="True" />
     <Setter Property="Background" Value="{DynamicResource VsBrushCanvas}" />
@@ -99,6 +134,15 @@
     <Setter Property="FontSize" Value="{StaticResource VsTextBody}" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
+  <Style Selector="Window.vsx-shell[IsActive=False] Border.vsx-titlebar">
+    <Setter Property="BorderBrush" Value="{DynamicResource VsBrushSurface}" />
+  </Style>
+  <Style Selector="Window.vsx-shell[IsActive=False] TextBlock.vsx-title">
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextSecondary}" />
+  </Style>
+  <Style Selector="Window.vsx-shell[IsActive=False] ui|FATabViewItem /template/ ContentPresenter#ContentPresenter">
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextSecondary}" />
+  </Style>
   <Style Selector="Window.vsx-shell TextBlock.vsx-status">
     <Setter Property="Foreground" Value="{DynamicResource VsBrushTextSecondary}" />
     <Setter Property="FontSize" Value="{StaticResource VsTextSmall}" />
@@ -107,9 +151,18 @@
     <Setter Property="FontSize" Value="{StaticResource VsTextHeading}" />
     <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
-  <Style Selector="Window.vsx-shell TextBlock.vsx-body">
+  <Style Selector="Window.vsx-shell TextBlock.vsx-dialog-game">
+    <Setter Property="FontSize" Value="{StaticResource VsTextReading}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource VsBrushTextPrimary}" />
+  </Style>
+  <Style Selector="Window.vsx-shell :is(TextBlock).vsx-body">
     <Setter Property="Foreground" Value="{DynamicResource VsBrushTextSecondary}" />
     <Setter Property="FontSize" Value="{StaticResource VsTextReading}" />
+  </Style>
+  <Style Selector="Window.vsx-shell SelectableTextBlock.vsx-body">
+    <Setter Property="SelectionBrush" Value="{DynamicResource VsBrushAccent}" />
+    <Setter Property="SelectionForegroundBrush" Value="{DynamicResource VsBrushOnAccent}" />
   </Style>
   <Style Selector="Window.vsx-shell Button.caption">
     <Setter Property="Focusable" Value="False" />

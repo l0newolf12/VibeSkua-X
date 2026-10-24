@@ -2,7 +2,41 @@
 
 Record confirmed UI defects here so future changes preserve their fixes. Keep current styling rules in [VISUAL-SYSTEM.md](VISUAL-SYSTEM.md) and build/check commands in [README.md](../README.md).
 
-## Caption buttons — fixed 2026-10-23
+## Games dropdown, connection tooltips, and recovery focus - 2026-10-24
+
+Keep the Games dropdown outside FATabView's measured strip. Its fixed width and the separate 160-DIP drag minimum must fit before the captions, even when the first layout already contains many tabs. The pinned control derives its footer minimum from a constrained DesiredSize that can be zero during initial overflow; its later local assignments must not override the application's minimum. Assert global hit-area positions as well as local Bounds: a child can retain Width=160 while its zero-width parent centers it outside its allotted space.
+
+Use the pinned FluentAvalonia menu and a native popup above Flash. The app creates ordinary menu items instead of using its experimental data-bound item path. Each item references the existing tab owner; refresh metadata in place while open and discard old items when the owner collection changes. Pointer/keyboard selection must reveal hidden headers and preserve session identity; Escape must preserve selection and return keyboard focus to the opener. Keep every game reachable and the menu disabled when empty. Use a fixed popup width and wrap full labels rather than truncating them like tabs.
+
+Avalonia 12.1.1 exposes Window.IsActive, not an automatic :active pseudo-class. Test the shared inactive style through actual native window activation. The button automation peer also does not forward attached Name changes, so explicitly forward those events for the single polite Games live region. Unchanged identity polls must not repeat announcements. Connection comes from the existing AS3 isLoggedIn bridge (the client's sfc.isConnected), independently of whether character data is available; it is not proof of a fully loaded character.
+
+Capture native game focus before destroying its control. Logical Retry.Focus alone can leave Windows focus on another WinForms child; focus the active shell HWND before its Retry action. Respect confirmations, active tab/menu navigation, and other windows, and guard delayed restoration against close/retry/selection changes. Native checks send Space to the focused Retry button and verify that only its session restarts.
+
+`ShellPolishChecks.cs` and `NativeShellPolishChecks.cs` cover these cases. Native fixture polling also verifies native Windows title updates and loaded/disconnected, connected-without-identity, named connection, and logout tooltips. Existing chrome, resize, tooltip, script, session survival, and cleanup checks remain.
+
+## Tab headers disappear while dragging - fixed 2026-10-24
+
+FluentAvalonia 3.1.0's `FATabViewItem` enters `:dragging` after a pressed pointer crosses its drag threshold, even when its parent has both `CanDragTabs` and `CanReorderTabs` disabled. The item theme then sets `LayoutRoot.Opacity` to zero for a drag preview, while the list correctly refuses to start dragging. Releasing outside the item can leave this cosmetic state uncleared. The game and tab owner remain alive; only the header disappears.
+
+The shared account-tab style keeps that template root opaque during `:dragging` only when both operations are disabled. Preserve the existing template, normal input, and session ownership. If reordering/tear-out is implemented later, the property-qualified override stops applying when either operation is enabled; validate that feature against the pinned library rather than removing its preview behavior globally.
+
+`UiRegressionChecks.cs` reproduces the original zero-opacity failure with real pointer input. It checks selected/inactive headers, overflow, release outside the strip, stable geometry/order/session ownership, and subsequent tab selection. Native checks repeat the drag with Windows messages and verify that two Flash handles, runtime instances, and temporary client-state markers survive.
+
+## Multi-game review follow-up - fixed 2026-10-23
+
+The nine findings in [UI-INTERACTION-REVIEW.md](UI-INTERACTION-REVIEW.md) now have permanent regression coverage.
+
+- The pinned FATabView shortcuts assumed nonempty collections, control-valued items, and realized containers. Keep the app-owned collection-based handlers for Ctrl+Tab/Ctrl+Shift+Tab/Ctrl+F4. The empty/single-tab checks run in a child process with a deadline so a loop regression cannot hang the main runner.
+- Preserve the distinction between keyboard tab navigation and pointer selection. Keyboard cycling/confirmation restores tab-strip focus, including across caption maximize/restore; pointer selection and game-oriented confirmation return to Flash. Capture the confirmation caller's policy before opening the dialog: Windows can restore a tab with NavigationMethod.Tab while reactivating the owner, which must not overwrite that original policy. Native checks verify both policies with two real clients.
+- Give each realized tab-close button an explicit action name and refresh it when the game label changes. Do not assume the pinned library's commented-out localization code names it. Check actual automation peers after overflow realization and native identity polling.
+- Use one polite status live region with the current game label/state. Avoid duplicate live regions on full error details and repeated events from unchanged identity polls. Name events are covered; end-to-end screen-reader speech still needs manual validation.
+- Keep recovery actions outside the scrollable diagnostic region. At minimum window size, long errors must not place Retry or Copy details below the client area. Details remain selectable; selected text uses the on-accent foreground for readable contrast. Copy feedback never changes button geometry.
+- Stretch both overflow arrow hosts and reserve the same bottom indicator area as close/divider/add. Include their centers in overflow layout checks. Keep the status slot fixed-width so label/state changes do not move the add button; re-reveal the selected tab when the strip resizes.
+- Bind tab brushes directly to the shared dynamic resources. Static brush aliases can retain old values after replacement; check distinct colors in selected/hover/pressed states and restore the originals afterwards.
+
+`UiRegressionChecks.cs` covers the headless cases, copy content, confirmation keyboard actions, loading state, and icon frames. `NativeUiRegressionChecks.cs` covers live-game focus, rename/logout metadata, and native window/executable icons. Existing resize, session survival, native popup, caption, and missing-SWF checks remain. New controls use shared tokens/styles, and native integrations retain their original STA ownership.
+
+## Caption buttons - fixed 2026-10-23
 
 These were interaction and styling defects at the boundary between FluentAvalonia controls and native Windows window chrome. The user confirmed the visible tooltip and hover fixes.
 

@@ -21,7 +21,7 @@ using FluentAvalonia.UI.Controls;
 namespace VibeSkuaX.Shell.Tests;
 
 /// <summary>Opt-in checks against our own off-screen Windows/ActiveX window; no desktop input.</summary>
-internal static class NativeSmoke
+internal static partial class NativeSmoke
 {
     private static string _artifacts = "";
     private static Exception? _failure;
@@ -173,6 +173,8 @@ internal static class NativeSmoke
             CheckPartialInitializationCleanup();
             await CheckAccountTabs(window, viewport);
             await NativeSessionChecks.Run(_artifacts);
+            await CheckRenamedTabUi();
+            await CheckNativeRecoveryFocus();
 
             // Cancel an actual native close request; it must leave the live game intact.
             EventHandler<WindowClosingEventArgs> cancel = (_, e) => e.Cancel = true;
@@ -222,6 +224,10 @@ internal static class NativeSmoke
 
     private static async Task CheckAccountTabs(ShellWindow window, FlashViewport firstViewport)
     {
+        // The resize checks leave the shell at minimum width. Use its default width
+        // for two fully visible native tab targets; the game-list check covers overflow.
+        window.Width = 1100;
+        await Until(() => window.ClientSize.Width == 1100, "Account fixture did not restore the default width.");
         var model = (ShellViewModel)window.DataContext!;
         var tabs = window.FindControl<FATabView>("AccountTabs")!;
         var first = model.SelectedTab!;
@@ -257,7 +263,7 @@ internal static class NativeSmoke
                 IntPtr inactiveContainer = i % 2 == 0 ? secondContainer : firstContainer;
                 await ClientClick(window, tabs.ContainerFromItem(selected));
                 await Until(() => model.SelectedTab == selected && IsWindowVisible(active.ContainerHandle) && !IsWindowVisible(inactiveContainer),
-                    "Native tab selection did not show only the selected game.");
+                    $"Native tab selection did not show only the selected game: switch={i}, width={window.ClientSize.Width}, requested={selected.Label}, selected={model.SelectedTab?.Label}, header={tabs.ContainerFromItem(selected)?.Bounds}.");
                 await WaitForViewport(window, active.ContainerHandle, activeFlash);
                 await Until(() => GetFocus() == activeFlash || IsChild(activeFlash, GetFocus()), "Tab selection did not focus the selected Flash game.");
                 Program.Check(ReferenceEquals(firstRuntime, first.Session.Runtime) && ReferenceEquals(secondRuntime, second.Session.Runtime) &&
@@ -269,6 +275,13 @@ internal static class NativeSmoke
                     JsonSerializer.Deserialize<string>(secondMarker) == "session-two-check",
                     $"Switching lost test marker state at switch {i}: {firstMarker} / {secondMarker}.");
             }
+            await CheckNativeTabDragging(window, tabs, second, first);
+            Program.Check(firstViewport.ContainerHandle == firstContainer && secondViewport.ContainerHandle == secondContainer &&
+                IsWindow(firstFlash) && IsWindow(secondFlash) && ReferenceEquals(firstRuntime, first.Session.Runtime) &&
+                ReferenceEquals(secondRuntime, second.Session.Runtime) &&
+                JsonSerializer.Deserialize<string>(firstRuntime.Call("getGameObject", field)) == "session-one-check" &&
+                JsonSerializer.Deserialize<string>(secondRuntime.Call("getGameObject", field)) == "session-two-check",
+                "Dragging a tab replaced a live game or lost its state.");
         }
         finally
         {
@@ -276,6 +289,9 @@ internal static class NativeSmoke
             secondRuntime.Call("setGameObject", field, null!);
         }
 
+        await CheckKeyboardTabFocus(window, tabs, first, second, firstFlash, secondFlash);
+        await CheckNativeGameList(window, first, second, firstFlash, secondFlash);
+        CheckNativeIcons(window);
         await CheckTabToolTips(window, tabs, secondFlash);
 
         Task cancelled = window.RequestCloseTabAsync(second);
@@ -303,10 +319,13 @@ internal static class NativeSmoke
 
         second.Session.Messenger.Send(new FlashRuntimeFailedMessage(new COMException("Tab isolation check")));
         await Until(() => second.HasError, "Injected tab failure was not reported.");
+        await Until(() => window.FindControl<Button>("RetryGameButton")!.IsFocused && GetFocus() == ownerHandle,
+            $"Failure did not focus Retry: active={window.IsActive}, captured={second.Session.HadFocusOnFailure}, focused={window.FocusManager?.GetFocusedElement()}, native={GetFocus()}, expected={ownerHandle}, header={tabs.IsKeyboardFocusWithin}.");
         Program.Check(!IsWindow(secondContainer) && !IsWindow(secondFlash) && IsWindow(firstFlash) && firstRuntime.Call<bool>("isTrue"),
             "Failure did not clean up just the affected native game.");
         var failed = second.Session;
-        second.RetryCommand.Execute(null);
+        NativeKey(ownerHandle, 0x20 /* Space activates the focused Retry button */);
+        await Until(() => second.Session != failed, "Keyboard activation of the focused Retry action did not restart the game.");
         await WaitReady(second);
         var replacement = window.SelectedViewport!;
         IntPtr replacementContainer = replacement.ContainerHandle;
@@ -412,7 +431,7 @@ internal static class NativeSmoke
         }
     }
 
-    private static async Task ClientClick(Window window, Control control)
+    private static async Task ClientClick(TopLevel window, Control control)
     {
         PixelPoint screen = default;
         await Until(() =>
@@ -521,13 +540,13 @@ internal static class NativeSmoke
             throw new InvalidOperationException("A missing SWF unexpectedly loaded the game.");
         }
         catch (Exception error) when (error.Message.Contains("bundled skua.swf is missing")) { }
-        await Until(() => viewport.Session.State == GameSessionState.Failed && window.FindControl<StackPanel>("GameErrorPanel")!.IsVisible,
+        await Until(() => viewport.Session.State == GameSessionState.Failed && window.FindControl<Grid>("GameErrorPanel")!.IsVisible,
             "Startup failure did not dispose the session and display the error.");
         Program.Check(!IsWindow(container) && viewport.ContainerHandle == IntPtr.Zero,
             "Startup failure left its WinForms container alive.");
         Program.Check(window.FindControl<TextBlock>("GameErrorMessage")!.Text!.Contains("bundled skua.swf is missing"),
             "The actual startup error was not shown.");
-        Program.Check(window.FindControl<TextBlock>("StatusText")!.Text == "Game unavailable", "Failure status was not shown.");
+        Program.Check(((string?)ToolTip.GetTip(window.FindControl<DropDownButton>("GameListButton")!))?.Contains("Client: Game unavailable") == true, "Failure status tooltip was not updated.");
         window.Width = 900;
         window.Height = 600;
         await Task.Delay(50);
