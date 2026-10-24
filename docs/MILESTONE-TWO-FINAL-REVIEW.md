@@ -1,0 +1,17 @@
+# Milestone two final code review
+
+Reviewed 2026-10-24 after pushing `a1e95dc` to main. This pass covered the shell, tab/view-model ownership, native viewport lifecycle, session state and identity polling, shared styles, menu/confirmation focus, diagnostics copying, and the associated headless/native checks. The existing retained engine checks were rerun; this pass did not change the script-facing APIs or inspect every retained engine implementation.
+
+The review found three P2 focus defects that the existing passing suites did not cover. All three were reproduced against two real Flash controls before correction and now have permanent native regression coverage.
+
+| Finding | Reproduction and cause | Correction |
+| --- | --- | --- |
+| Clicking the selected tab leaves keyboard focus outside its game. | Focus the selected header through keyboard navigation, then click that same header. Selection does not change, so the selected-property handler never requests native game focus. | Pointer release on the selected header explicitly restores game focus, including repeated clicks; modal/menu guards remain. |
+| Resize after returning from keyboard navigation to native Flash refocuses a header. | Cycle from the keyboard, return native focus to Flash, then resize. Native input does not update the shell's last keyboard-origin flag. SizeChanged treats that stale flag as a request to focus a header; later caption actions can then leave keyboard input outside Flash. | Separate revealing the selected tab from restoring header focus. A resize restores a header only if the tab strip actually owned focus when resizing began. Keyboard cycling still explicitly restores its target after virtualization/layout. Delayed callbacks retain selection, close, modal, menu, and input-policy guards. |
+| Maximize/Restore takes keyboard focus from the Games opener. | Keyboard-focus the Games button and maximize/restore. The old caption policy checks only AccountTabs even though the button is now its sibling. Resize-driven tab revealing could also move focus from the button into a header. | Caption restoration checks the entire AccountHeader; resize focus restoration remains specific to the actual tab strip. |
+
+`NativeUiRegressionChecks.CheckFinalFocusTransitions` reproduces these interactions through test-owned native windows. Existing checks continue to cover all eight resize targets, three viewport sizes, two live game runtimes/state, menu selection above Flash, confirmation/recovery focus, connection/identity tooltips, missing-SWF startup, and cleanup. Headless checks retain the eleven-tab overflow cases, stable geometry, live status events, diagnostics, icon assets, and tooltip placement.
+
+The final verification uses the README commands with isolated build output so the user's running client is not stopped. Release build, foundation checks, headless shell checks, and normal/missing-SWF native workers pass. No additional confirmed defects remain from this pass. This is not a guarantee against all interaction sequences: physical-pointer behavior across mixed-DPI monitors, end-to-end screen-reader speech, and real logged-in map/server transitions remain manual validation limits.
+
+Milestone three is proposed in [PROJECT.md](PROJECT.md#proposed-milestone-three-scripts-for-the-selected-game). It builds on the retained EngineSession foundation; it has not been implemented or declared an agreed scope by this review.

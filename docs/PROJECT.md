@@ -69,6 +69,8 @@ See [UI-INTERACTION-REVIEW.md](UI-INTERACTION-REVIEW.md) for the 2026-10-23 revi
 
 See [UI-REGRESSIONS.md](UI-REGRESSIONS.md) for confirmed UI defects, their causes, prevention guidance, and regression coverage. Consult it when changing affected UI behavior.
 
+See [MILESTONE-TWO-FINAL-REVIEW.md](MILESTONE-TWO-FINAL-REVIEW.md) for the final source/native review, its three reproduced and corrected focus findings, validation evidence, and remaining limits.
+
 See [README.md](../README.md) for build commands and the current foundation checks.
 
 ## Milestone two: account tabs and multiple live games
@@ -92,6 +94,18 @@ Tooltip text separates **Client: Game loaded** from **Connection: Connected / No
 Completion means two accounts can remain logged in while the user switches between them, and tab close/retry/application shutdown clean up the correct resources. Automated native checks establish session survival and focus; real login continuity and keyboard interaction with user-controlled accounts still need manual confirmation.
 
 Saved credentials, automatic login, account groups, cross-account commands, tab tear-out/reordering, the full toolbar, and scripting UI are outside this milestone. Connecting script execution to the selected account is a subsequent milestone; preserve existing script compatibility throughout.
+
+## Proposed milestone three: scripts for the selected game
+
+This is the recommended next milestone after the completed multi-game shell, pending scope agreement. The retained EngineSession already provides independent engine services and representative two-engine execution checks; it is not yet connected to the shell's real GameSession instances.
+
+- Give each game owner its own EngineSession and host adapters bound to that same Flash runtime and messenger. Preserve existing script namespaces, ScriptMain entry points, compiler/include behavior, options, cancellation, and session context. Do not compose multiple accounts through legacy global single-engine services.
+- Add a small script surface for the selected game: open an existing `.cs` script, show its filename and execution state, and provide Run/Stop. Capture the target owner when an action starts. Switching tabs changes the displayed controls without switching a running script's owner or stopping another game.
+- Expose per-game output and compilation/runtime errors, plus the existing script options and input requests through appropriate owned windows. Keep logs bounded and native surfaces above Flash; use the shared title bar and visual resources. No full editor, debugger, script library, broad toolbar, or cross-account batch controls in this milestone.
+- Coordinate tab close, retry, runtime failure, and application shutdown with asynchronous script stopping/disposal before releasing its runtime/services. A timed-out non-cooperative script must not be reported as stopped or have its live service graph silently destroyed; agree the user-facing timeout behavior before implementation.
+- Verify representative existing scripts and source includes against the real host adapters, options/input cancellation, and two real game owners. Running/stopping/failing one script must leave the other engine and game intact, and close/retry must clean up the correct owner.
+
+Completion would mean an existing Skua script can run against the chosen live game, report its state/output, and stop cleanly; two owners remain independent through selection, failure, retry, and shutdown. Saved credentials, automatic login, account orchestration, and advanced authoring tools remain later work.
 
 ## Repository
 

@@ -14,6 +14,59 @@ namespace VibeSkuaX.Shell.Tests;
 
 internal static partial class NativeSmoke
 {
+    private static async Task CheckFinalFocusTransitions(ShellWindow window, FATabView tabs,
+        GameTabViewModel first, GameTabViewModel second, IntPtr secondFlash)
+    {
+        var model = (ShellViewModel)window.DataContext!;
+        var handle = window.TryGetPlatformHandle()!.Handle;
+        var failures = new List<string>();
+        double width = window.Width;
+        SetFocus(handle);
+        tabs.ContainerFromItem(second).Focus(NavigationMethod.Tab);
+        await ClientClick(window, tabs.ContainerFromItem(second));
+        if (GetFocus() != secondFlash && !IsChild(secondFlash, GetFocus()))
+            failures.Add("Clicking the already selected tab does not return keyboard focus to its live game.");
+
+        SetFocus(handle);
+        model.SelectedTab = first;
+        tabs.ContainerFromItem(first).Focus(NavigationMethod.Tab);
+        var cycle = tabs.KeyBindings.Single(k => k.Gesture.Key == Key.Tab && k.Gesture.KeyModifiers == KeyModifiers.Control);
+        cycle.TryHandle(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab, KeyModifiers = KeyModifiers.Control });
+        await Until(() => model.SelectedTab == second && tabs.ContainerFromItem(second)?.IsFocused == true,
+            "Final review fixture could not establish keyboard tab selection.");
+        // Native game input does not bubble through Avalonia's account header.
+        SetFocus(secondFlash);
+        await Until(() => GetFocus() == secondFlash && !tabs.IsKeyboardFocusWithin, "Could not return focus directly to Flash.");
+        window.Width = width - 20;
+        await Until(() => window.ClientSize.Width == width - 20, "Focus fixture did not resize.");
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.ApplicationIdle);
+        if (tabs.IsKeyboardFocusWithin)
+            failures.Add("Resizing after returning from keyboard tab navigation to Flash refocuses a tab header.");
+        await NativeClick(window, "MaximizeButton", 9);
+        await Until(() => window.WindowState == WindowState.Maximized, "Review maximize did not complete.");
+        await NativeClick(window, "MaximizeButton", 9);
+        await Until(() => window.WindowState == WindowState.Normal, "Review restore did not complete.");
+        if (GetFocus() != secondFlash && !IsChild(secondFlash, GetFocus()))
+            failures.Add("Caption actions after the keyboard-to-game transition lose Flash focus.");
+
+        var menu = window.FindControl<DropDownButton>("GameListButton")!;
+        SetFocus(handle);
+        menu.Focus(NavigationMethod.Tab);
+        await NativeClick(window, "MaximizeButton", 9);
+        await Until(() => window.WindowState == WindowState.Maximized, "Games-opener maximize did not complete.");
+        await NativeClick(window, "MaximizeButton", 9);
+        await Until(() => window.WindowState == WindowState.Normal, "Games-opener restore did not complete.");
+        if (!menu.IsFocused || GetFocus() != handle)
+            failures.Add("Maximize/Restore takes keyboard focus from the Games dropdown opener.");
+
+        window.Width = width;
+        await Until(() => window.ClientSize.Width == width, "Review fixture did not restore its width.");
+        await ClientClick(window, tabs.ContainerFromItem(first));
+        await ClientClick(window, tabs.ContainerFromItem(second));
+        Program.Check(failures.Count == 0, string.Join(Environment.NewLine, failures));
+        Console.WriteLine("PASS: selected-tab clicks return to Flash; resize after native game input preserves focus; captions preserve Games-opener keyboard focus.");
+    }
+
     private static async Task CheckNativeTabDragging(ShellWindow window, FATabView tabs, params GameTabViewModel[] targets)
     {
         var model = (ShellViewModel)window.DataContext!;

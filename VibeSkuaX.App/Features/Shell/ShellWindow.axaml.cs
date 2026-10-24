@@ -76,12 +76,22 @@ public partial class ShellWindow : Window
         foreach (var binding in AccountTabs.KeyBindings)
             GameListButton.KeyBindings.Add(new KeyBinding { Gesture = binding.Gesture, Command = binding.Command });
         AccountHeader.AddHandler(PointerPressedEvent, (_, _) => _preserveTabFocus = false, RoutingStrategies.Tunnel);
+        AccountTabs.AddHandler(PointerReleasedEvent, (_, e) =>
+        {
+            // Selection does not change when the user clicks the current header.
+            // Restore game focus for that case too, including repeated clicks.
+            if (e.InitialPressMouseButton == MouseButton.Left && !_preserveTabFocus &&
+                e.Source is Avalonia.Visual source &&
+                source.FindAncestorOfType<FATabViewItem>(includeSelf: true) is { Header: GameTabViewModel tab } &&
+                tab == _viewModel.SelectedTab)
+                FocusSelectedGame();
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
         AccountHeader.AddHandler(KeyDownEvent, (_, _) => _preserveTabFocus = true, RoutingStrategies.Tunnel);
         AccountHeader.GotFocus += (_, e) =>
         {
             if (e.NavigationMethod is NavigationMethod.Tab or NavigationMethod.Directional) _preserveTabFocus = true;
         };
-        AccountTabs.SizeChanged += (_, _) => RevealSelectedTab();
+        AccountTabs.SizeChanged += (_, _) => RevealSelectedTab(_preserveTabFocus && AccountTabs.IsKeyboardFocusWithin);
         ((INotifyCollectionChanged)_viewModel.Tabs).CollectionChanged += TabsChanged;
         _viewModel.PropertyChanged += ModelChanged;
         SynchronizeViewports();
@@ -236,16 +246,21 @@ public partial class ShellWindow : Window
         return _viewModel.SelectedTab is { } tab ? RequestCloseTabAsync(tab) : Task.CompletedTask;
     }
 
-    private void RevealSelectedTab() => Dispatcher.UIThread.Post(() =>
+    private void RevealSelectedTab(bool? restoreFocus = null)
     {
-        if (_closed || CloseConfirmation is not null || _viewModel.SelectedTab is not { } tab) return;
-        AccountTabs.GetVisualDescendants().OfType<FATabViewListView>().FirstOrDefault()?.ScrollIntoView(tab);
+        bool focusHeader = restoreFocus ?? _preserveTabFocus;
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_closed && CloseConfirmation is null && _preserveTabFocus && _viewModel.SelectedTab == tab)
-                AccountTabs.ContainerFromItem(tab)?.Focus(NavigationMethod.Tab);
+            if (_closed || CloseConfirmation is not null || _viewModel.SelectedTab is not { } tab) return;
+            AccountTabs.GetVisualDescendants().OfType<FATabViewListView>().FirstOrDefault()?.ScrollIntoView(tab);
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (!_closed && CloseConfirmation is null && !GameListFlyout.IsOpen && focusHeader &&
+                    _preserveTabFocus && _viewModel.SelectedTab == tab)
+                    AccountTabs.ContainerFromItem(tab)?.Focus(NavigationMethod.Tab);
+            }, DispatcherPriority.Loaded);
         }, DispatcherPriority.Loaded);
-    }, DispatcherPriority.Loaded);
+    }
 
     private void TabItemLoaded(object? sender, RoutedEventArgs e)
     {
@@ -342,7 +357,7 @@ public partial class ShellWindow : Window
 
     private void RestoreGameFocus(object? sender, EventArgs e)
     {
-        if (!_preserveTabFocus || !AccountTabs.IsKeyboardFocusWithin) SelectedViewport?.FocusGame();
+        if (!_preserveTabFocus || !AccountHeader.IsKeyboardFocusWithin) SelectedViewport?.FocusGame();
     }
 
     protected override void OnClosed(EventArgs e)

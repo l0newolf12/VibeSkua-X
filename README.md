@@ -148,6 +148,9 @@ Escape must restore the appropriate focus. Native checks exercise activation of
 shell/auxiliary windows, Windows title updates, distinct readiness/connection
 tooltips, and keyboard activation of Retry after a focused-game failure. Failure
 during confirmation or while another window is active must preserve that focus.
+The final review also checks clicking the selected header, resizing after returning
+from keyboard navigation to native Flash, and caption actions while Games has
+keyboard focus. Findings and fixes are recorded in docs/MILESTONE-TWO-FINAL-REVIEW.md.
 The actual tab-close confirmation must appear above Flash. Failure, retry, and
 confirmed close must leave the other game usable; application shutdown must also
 destroy an inactive live game. Fixture data checks character names and logout.

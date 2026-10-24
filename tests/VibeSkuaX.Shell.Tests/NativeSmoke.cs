@@ -291,6 +291,7 @@ internal static partial class NativeSmoke
 
         await CheckKeyboardTabFocus(window, tabs, first, second, firstFlash, secondFlash);
         await CheckNativeGameList(window, first, second, firstFlash, secondFlash);
+        await CheckFinalFocusTransitions(window, tabs, first, second, secondFlash);
         CheckNativeIcons(window);
         await CheckTabToolTips(window, tabs, secondFlash);
 

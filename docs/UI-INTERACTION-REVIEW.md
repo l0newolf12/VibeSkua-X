@@ -4,7 +4,7 @@ Reviewed 2026-10-23 at `f2eb0af` (`feat(shell): add multi-game tabs and shared w
 
 The review found **nine issues: one P1, six P2, and two P3**. The original automated suites passed without covering these failure cases. P1 means a UI hang needing prompt correction; P2 means broken interaction, recovery, or accessibility; P3 means a lower-impact visual or shared-style inconsistency.
 
-## Implementation follow-up - 2026-10-23
+## Implementation follow-up — 2026-10-23
 
 All nine findings have been addressed, together with the five improvements selected by the user. The original evidence/recommendations are retained below for context.
 
@@ -29,7 +29,7 @@ Validation passed: Release solution build with zero warnings/errors; foundation 
 
 Retained implementation captures: [reachable recovery actions and selected details](design/ui-review-2026-10-23/long-error-fixed.png), [aligned overflow and loading indicator](design/ui-review-2026-10-23/overflow-fixed.png), and [prominent confirmation target](design/ui-review-2026-10-23/close-game-fixed.png). Their original artifact names are `long-error-fixed.png`, `tabs-overflow-fixed.png`, and `close-game-dialog.png` in `artifacts/shell-tests/`.
 
-## Additional selected improvements - 2026-10-24
+## Additional selected improvements — 2026-10-24
 
 The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are implemented:
 
@@ -44,7 +44,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 ## Findings
 
-### 1. P1 - Ctrl+Tab freezes the empty window
+### 1. P1 — Ctrl+Tab freezes the empty window
 
 **Trigger:** Close the last game, focus the title strip's **+** button, and press Ctrl+Tab. The UI stops responding. The empty state is a supported milestone-two state, so the tab control's shortcut remains reachable with zero games.
 
@@ -58,7 +58,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 **Regression coverage needed:** Zero, one, and multiple tabs; both cycle directions; a process timeout around the zero-tab cases so a regression cannot hang the test runner.
 
-### 2. P2 - Ctrl+F4 does not request tab close
+### 2. P2 — Ctrl+F4 does not request tab close
 
 **Trigger:** With a game tab focused, press Ctrl+F4. No confirmation appears and nothing closes, although this shortcut is installed by the tab control.
 
@@ -72,7 +72,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 **Regression coverage needed:** Ctrl+F4 from a focused data-bound tab, cancellation, confirmation, no selection, and an already-open confirmation. This finding concerns keyboard input in the Avalonia tab strip, not a promise of global shortcuts inside Flash.
 
-### 3. P2 - Ctrl+Tab skips games outside the visible strip
+### 3. P2 — Ctrl+Tab skips games outside the visible strip
 
 **Trigger:** Open enough tabs to overflow, select the last tab, focus its header, and press Ctrl+Tab. Cycling does not reach the first game.
 
@@ -86,7 +86,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 **Regression coverage needed:** Forward/backward wrap with overflowing tabs, including targets without realized containers. Verify selection and visibility of every game, not only that the add button and captions remain visible.
 
-### 4. P2 - Keyboard selection immediately transfers focus into Flash
+### 4. P2 — Keyboard selection immediately transfers focus into Flash
 
 **Trigger:** Start with keyboard focus in the tab strip and use Ctrl+Tab between two ready games. The first selection change sends native keyboard focus into the selected Flash client, interrupting further tab-strip keyboard navigation.
 
@@ -100,7 +100,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 **Regression coverage needed:** Repeated keyboard cycling with two ready native games; keyboard movement to close/add actions; pointer selection and confirmation cancellation still focusing the correct game.
 
-### 5. P2 - Long failure details push Retry outside the window
+### 5. P2 — Long failure details push Retry outside the window
 
 **Trigger:** Display a sufficiently long runtime/load error at the supported minimum window size, 720 × 460 DIPs. The message continues below the visible content and Retry disappears.
 
@@ -116,7 +116,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 ![Long error at the supported minimum size; Retry is below the window](design/ui-review-2026-10-23/long-error.png)
 
-### 6. P2 - Tab-close buttons expose an icon code as their accessible name
+### 6. P2 — Tab-close buttons expose an icon code as their accessible name
 
 **Trigger:** Inspect or navigate to an account tab's close button with assistive technology.
 
@@ -130,7 +130,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 **Regression coverage needed:** Inspect the actual button automation peer after initial creation, character rename, adding tabs, and scrolling. Check that every interactive icon has a readable action name.
 
-### 7. P2 - Status and failure changes have no live-region notification
+### 7. P2 — Status and failure changes have no live-region notification
 
 **Trigger:** Loading completes or a game fails while focus is elsewhere, including inside Flash. Status/error text changes visually without the shell requesting a live accessibility announcement.
 
@@ -144,7 +144,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 **Regression coverage needed:** Automation live-setting/event checks followed by a Windows screen-reader check with native Flash focus. Test failure, retry, completion, and switching to a failed background game.
 
-### 8. P3 - Overflow arrows are still vertically misaligned
+### 8. P3 — Overflow arrows are still vertically misaligned
 
 **Trigger:** Open enough games to show the strip's scroll arrows, particularly at minimum width.
 
@@ -160,7 +160,7 @@ The user subsequently selected I04, I06, I07, I08, I10, and I13. All six are imp
 
 ![Overflow arrows sit below the tab-close and add controls](design/ui-review-2026-10-23/overflow.png)
 
-### 9. P3 - Tab brush aliases do not follow shared resource replacement
+### 9. P3 — Tab brush aliases do not follow shared resource replacement
 
 **Trigger:** Replace an application brush resource after the shell is loaded. Some tab colors retain the old brush while other shared visuals update.
 

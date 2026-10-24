@@ -2,7 +2,13 @@
 
 Record confirmed UI defects here so future changes preserve their fixes. Keep current styling rules in [VISUAL-SYSTEM.md](VISUAL-SYSTEM.md) and build/check commands in [README.md](../README.md).
 
-## Games dropdown, connection tooltips, and recovery focus - 2026-10-24
+## Final focus transitions — fixed 2026-10-24
+
+The [final milestone-two review](MILESTONE-TWO-FINAL-REVIEW.md) reproduced three additional P2 defects. A click on the already-selected tab does not produce SelectedTabChanged, so the pointer-release path must restore game focus explicitly. Native Flash input also bypasses the Avalonia header: a cached keyboard-origin flag cannot prove that the tab strip still owns focus when it resizes. Reveal the selected item after resizing, but restore its focus only if the strip actually owned focus. Keep explicit keyboard cycling's delayed realization/focus behavior.
+
+The Games button is a sibling of AccountTabs. Caption focus policy must check the complete AccountHeader so Maximize/Restore preserves keyboard focus on the button; a resize should not turn that into tab-header focus. `NativeUiRegressionChecks.CheckFinalFocusTransitions` verifies all three behaviors, including the later caption-focus consequence of a stale resize policy, against two live games. The new checks failed before the fixes.
+
+## Games dropdown, connection tooltips, and recovery focus — 2026-10-24
 
 Keep the Games dropdown outside FATabView's measured strip. Its fixed width and the separate 160-DIP drag minimum must fit before the captions, even when the first layout already contains many tabs. The pinned control derives its footer minimum from a constrained DesiredSize that can be zero during initial overflow; its later local assignments must not override the application's minimum. Assert global hit-area positions as well as local Bounds: a child can retain Width=160 while its zero-width parent centers it outside its allotted space.
 
@@ -14,7 +20,7 @@ Capture native game focus before destroying its control. Logical Retry.Focus alo
 
 `ShellPolishChecks.cs` and `NativeShellPolishChecks.cs` cover these cases. Native fixture polling also verifies native Windows title updates and loaded/disconnected, connected-without-identity, named connection, and logout tooltips. Existing chrome, resize, tooltip, script, session survival, and cleanup checks remain.
 
-## Tab headers disappear while dragging - fixed 2026-10-24
+## Tab headers disappear while dragging — fixed 2026-10-24
 
 FluentAvalonia 3.1.0's `FATabViewItem` enters `:dragging` after a pressed pointer crosses its drag threshold, even when its parent has both `CanDragTabs` and `CanReorderTabs` disabled. The item theme then sets `LayoutRoot.Opacity` to zero for a drag preview, while the list correctly refuses to start dragging. Releasing outside the item can leave this cosmetic state uncleared. The game and tab owner remain alive; only the header disappears.
 
@@ -22,7 +28,7 @@ The shared account-tab style keeps that template root opaque during `:dragging` 
 
 `UiRegressionChecks.cs` reproduces the original zero-opacity failure with real pointer input. It checks selected/inactive headers, overflow, release outside the strip, stable geometry/order/session ownership, and subsequent tab selection. Native checks repeat the drag with Windows messages and verify that two Flash handles, runtime instances, and temporary client-state markers survive.
 
-## Multi-game review follow-up - fixed 2026-10-23
+## Multi-game review follow-up — fixed 2026-10-23
 
 The nine findings in [UI-INTERACTION-REVIEW.md](UI-INTERACTION-REVIEW.md) now have permanent regression coverage.
 
@@ -36,7 +42,7 @@ The nine findings in [UI-INTERACTION-REVIEW.md](UI-INTERACTION-REVIEW.md) now ha
 
 `UiRegressionChecks.cs` covers the headless cases, copy content, confirmation keyboard actions, loading state, and icon frames. `NativeUiRegressionChecks.cs` covers live-game focus, rename/logout metadata, and native window/executable icons. Existing resize, session survival, native popup, caption, and missing-SWF checks remain. New controls use shared tokens/styles, and native integrations retain their original STA ownership.
 
-## Caption buttons - fixed 2026-10-23
+## Caption buttons — fixed 2026-10-23
 
 These were interaction and styling defects at the boundary between FluentAvalonia controls and native Windows window chrome. The user confirmed the visible tooltip and hover fixes.
 

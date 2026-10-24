@@ -6,7 +6,7 @@ The compact title bar and large game area already fit the design direction. Keep
 
 ## Improvements to the current shell
 
-### 1. Make failures actionable and accurately named - P2
+### 1. Make failures actionable and accurately named — P2
 
 **Current behavior:** `ShellWindow.axaml` always displays **The game could not start**, including a fatal runtime disconnect after the game was already Ready. The only error content is a wrapping `TextBlock`; there is no retry or copy action. A transient network failure therefore requires restarting the application, and a long technical error is difficult to share.
 
@@ -16,7 +16,7 @@ Keep window minimize/maximize/close handlers in the view. Put retry availability
 
 **References:** [current error UI](../VibeSkuaX.App/Features/Shell/ShellWindow.axaml), [session failure behavior](../VibeSkuaX.App/Sessions/GameSession.cs), [Toolkit commands sample](../references/Avalonia-Samples/src/Avalonia.Samples/MVVM/CommandSample/ViewModels/CommunityToolkitCommandsViewModel.cs), [FAInfoBar examples](../references/FluentAvalonia/samples/FAControlsGallery/Pages/FAControlsPages/InfoBarPage.axaml). An inline error panel is enough here; adopting FAInfoBar is optional.
 
-### 2. Give loading a visible state - P2
+### 2. Give loading a visible state — P2
 
 **Current behavior:** Starting/loading is communicated only by 11-point text at the far right of the title bar. The rest of the shell can remain blank while the version and game downloads run, up to the startup deadline. The saved headless render demonstrates the shell layout, but omits Flash and cannot establish the live game's own loading artwork.
 
@@ -26,7 +26,7 @@ Keep this feedback in shell space outside the Flash surface. An Avalonia panel d
 
 **Reference:** [FAProgressRing implementation](../references/FluentAvalonia/src/FluentAvalonia/UI/Controls/ProgressRing/FAProgressRing.cs) provides `IsActive` and `IsIndeterminate` in the pinned version.
 
-### 3. Replace scattered colors with a small theme palette - P2
+### 3. Replace scattered colors with a small theme palette — P2
 
 **Current behavior:** The app requests Dark, while the shell hardcodes its backgrounds, text, borders, hover colors, and badge color directly in XAML. Those values do not respond to theme resources. Loading FluentAvalonia's theme alone does not make those custom colors adapt to Windows high contrast.
 
@@ -36,7 +36,7 @@ Use existing FluentAvalonia resources where their meaning matches, such as `Text
 
 **References:** [theme resources](../references/FluentAvalonia/src/FluentAvalonia/Styling/StylesV2/Fluentv2.axaml), [theme/contrast policy implementation](../references/FluentAvalonia/src/FluentAvalonia/Styling/Core/FluentAvaloniaTheme.axaml.cs), [Avalonia theme-variant guidance](../references/Avalonia-Docs/docs/styling/theme-variants.md).
 
-### 4. Announce status changes and describe caption actions precisely - P2
+### 4. Announce status changes and describe caption actions precisely — P2
 
 **Current behavior:** Caption buttons already have accessible names and tooltips, which is good. However, the maximize button always says **Maximize or restore**, even when one specific action applies. Status/error text has no live-region setting. Existing mouse/layout tests do not establish keyboard or screen-reader behavior, particularly when focus moves into the native game.
 
@@ -44,7 +44,7 @@ Use existing FluentAvalonia resources where their meaning matches, such as `Text
 
 **References:** [accessibility guidance](../references/Avalonia-Docs/docs/app-development/accessibility.md), [pinned AutomationProperties API](../references/Avalonia-Source/src/Avalonia.Controls/Automation/AutomationProperties.cs), [TextBlock text-change notifications](../references/Avalonia-Source/src/Avalonia.Controls/Automation/Peers/TextBlockAutomationPeer.cs), [Windows live-region event handling](../references/Avalonia-Source/src/Windows/Avalonia.Win32.Automation/AutomationNode.cs).
 
-### 5. Finish caption styling and application identity - P3
+### 5. Finish caption styling and application identity — P3
 
 **Current behavior:** The custom caption style explicitly defines normal and hover appearance. Pressed/disabled states otherwise come from the general button theme, and the title bar does not style inactive-window state. The cyan X is drawn inline; no `Window.Icon` or application icon is configured in the app project.
 
